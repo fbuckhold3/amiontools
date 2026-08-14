@@ -1,0 +1,24 @@
+Package: amiontools
+Title: Shared Amion Schedule Fetch, Classification, and Crosswalk Tools
+Version: 0.0.1
+Authors@R:
+    person("Fred", "Buckhold", , "fbuckhold3@icloud.com", role = c("aut", "cre"))
+Description: Shared functions for pulling resident schedule data from
+    Amion, classifying assignments into top-level rotation categories, and
+    crosswalking Amion identities against RDM resident_id records. Used by
+    amion-va-report and downstream rotation-analysis, attendance-
+    reconciliation, and duty-hour tools across the IMSLU / GME Tools
+    ecosystem.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Imports:
+    dplyr,
+    httr,
+    lubridate,
+    REDCapR,
+    tidyr
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.0.0
