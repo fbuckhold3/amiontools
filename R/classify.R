@@ -9,6 +9,15 @@
 # generic bucket.
 # =============================================================================
 
+#' First academic year (start-year form, e.g. 2026 for AY 2026-27) under the
+#' current schedule. The program's schedule was completely rebuilt starting
+#' this AY, so any multi-year cumulative rotation tracking (e.g. a
+#' categorical resident's rotation mix over their full 3 years) must not
+#' pull data from before this year — earlier years used a different
+#' schedule structure and aren't comparable.
+#' @export
+AMION_SCHEDULE_CHANGE_AY <- 2026L
+
 #' Amion `Grouping` -> top-level rotation category.
 #' @export
 ROTATION_CATEGORY_MAP <- c(

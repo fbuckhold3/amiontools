@@ -14,9 +14,12 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 Imports:
     dplyr,
+    DT,
+    gmed,
     httr,
     lubridate,
     REDCapR,
+    shiny,
     tidyr
 Suggests:
     testthat (>= 3.0.0)

@@ -2,7 +2,8 @@
 % Please edit documentation in R/rotation_summary.R
 \name{build_rotation_summary}
 \alias{build_rotation_summary}
-\title{Build per-resident rotation-day counts by top-level category.}
+\title{Build per-resident rotation-day counts by top-level category, plus a
+per-PGY-class average for comparison.}
 \usage{
 build_rotation_summary(
   rdm_token,
@@ -34,14 +35,28 @@ crosswalk against, confirmed out of scope 2026-08-14).}
 \value{
 A list with:
 \itemize{
-\item detail: every type=='r' row used, with \code{category} attached
-\item summary_long: record_id/name/category/Days
-\item summary_wide: one row per resident, one column per category
+\item detail: every type=='r' row used, with \code{category} and \code{Level} attached
+\item summary_long: record_id/name/Level/category/Days (per resident)
+\item summary_wide: one row per resident (+ Level), one column per category
+\item class_avg_long: Level/category/Avg_Days (averaged across residents in
+that Level for the pulled date range)
+\item class_avg_wide: one row per Level, one column per category
 \item unmapped: any Grouping values classify_rotation() didn't recognize —
 should be empty; a non-empty result means ROTATION_CATEGORY_MAP needs
 a new entry (Amion's Grouping vocabulary can grow over time).
 }
+
+NOTE on class_avg when ay_start < ay_end (multi-year pulls, e.g. via
+build_rotation_summary_since_change()): class_avg here still groups by
+each resident's CURRENT Level, not their Level at the time of each
+rotation. That's fine for a single-AY pull but will misrepresent a
+multi-year cumulative view once residents in the window have actually
+changed PGY level — grouping by cohort (grad_yr) instead is the correct
+fix for that case and is intentionally not yet implemented (flagged in
+the amion_integration project notes 2026-08-14; revisit once a
+multi-year view is actually being built for real, not just plumbed).
 }
 \description{
-Build per-resident rotation-day counts by top-level category.
+Build per-resident rotation-day counts by top-level category, plus a
+per-PGY-class average for comparison.
 }

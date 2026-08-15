@@ -2,7 +2,7 @@
 % Please edit documentation in R/crosswalk.R
 \name{get_amion_crosswalk}
 \alias{get_amion_crosswalk}
-\title{Pull the RDM record_id <-> Amion Staff ID crosswalk.}
+\title{Pull the RDM record_id <-> Amion Staff ID crosswalk, with PGY level.}
 \usage{
 get_amion_crosswalk(rdm_token, redcap_url, verified_only = TRUE)
 }
@@ -18,8 +18,13 @@ than every non-blank row.}
 }
 \value{
 Tibble with record_id, name, amion_staff_id (integer),
-amion_verified, amion_match_date.
+amion_verified, amion_match_date, Level.
 }
 \description{
-Pull the RDM record_id <-> Amion Staff ID crosswalk.
+Level is computed via \code{gmed::calculate_resident_level()} — the same
+canonical type/grad_yr decode used elsewhere in the RDM ecosystem —
+rather than re-implemented here, to avoid a second copy of that logic
+drifting out of sync (see gmed commit 4b6766c, 2026-08-14, which fixed a
+grad_yr decode range bug that silently broke Level for ~85 of 90
+residents; this function inherits that fix automatically).
 }

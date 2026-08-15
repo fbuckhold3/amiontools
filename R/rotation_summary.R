@@ -12,7 +12,8 @@
 #' @importFrom tidyr pivot_wider
 NULL
 
-#' Build per-resident rotation-day counts by top-level category.
+#' Build per-resident rotation-day counts by top-level category, plus a
+#' per-PGY-class average for comparison.
 #'
 #' @param rdm_token RDM REDCap API token (test or prod — caller's choice).
 #' @param redcap_url REDCap API URL.
@@ -25,12 +26,25 @@ NULL
 #'   crosswalk against, confirmed out of scope 2026-08-14).
 #' @param verified_only Passed through to get_amion_crosswalk().
 #' @return A list with:
-#'   - detail: every type=='r' row used, with `category` attached
-#'   - summary_long: record_id/name/category/Days
-#'   - summary_wide: one row per resident, one column per category
+#'   - detail: every type=='r' row used, with `category` and `Level` attached
+#'   - summary_long: record_id/name/Level/category/Days (per resident)
+#'   - summary_wide: one row per resident (+ Level), one column per category
+#'   - class_avg_long: Level/category/Avg_Days (averaged across residents in
+#'     that Level for the pulled date range)
+#'   - class_avg_wide: one row per Level, one column per category
 #'   - unmapped: any Grouping values classify_rotation() didn't recognize —
 #'     should be empty; a non-empty result means ROTATION_CATEGORY_MAP needs
 #'     a new entry (Amion's Grouping vocabulary can grow over time).
+#'
+#'   NOTE on class_avg when ay_start < ay_end (multi-year pulls, e.g. via
+#'   build_rotation_summary_since_change()): class_avg here still groups by
+#'   each resident's CURRENT Level, not their Level at the time of each
+#'   rotation. That's fine for a single-AY pull but will misrepresent a
+#'   multi-year cumulative view once residents in the window have actually
+#'   changed PGY level — grouping by cohort (grad_yr) instead is the correct
+#'   fix for that case and is intentionally not yet implemented (flagged in
+#'   the amion_integration project notes 2026-08-14; revisit once a
+#'   multi-year view is actually being built for real, not just plumbed).
 #' @export
 build_rotation_summary <- function(rdm_token,
                                    redcap_url,
@@ -57,16 +71,53 @@ build_rotation_summary <- function(rdm_token,
     dplyr::count(Grouping, sort = TRUE)
 
   summary_long <- r_only |>
-    dplyr::group_by(record_id, name, category) |>
+    dplyr::group_by(record_id, name, Level, category) |>
     dplyr::summarise(Days = sum(Day_Value), .groups = "drop")
 
   summary_wide <- summary_long |>
     tidyr::pivot_wider(names_from = category, values_from = Days, values_fill = 0)
 
+  class_avg_long <- summary_long |>
+    dplyr::group_by(Level, category) |>
+    dplyr::summarise(Avg_Days = mean(Days), .groups = "drop")
+
+  class_avg_wide <- class_avg_long |>
+    tidyr::pivot_wider(names_from = category, values_from = Avg_Days, values_fill = 0)
+
   list(
-    detail        = r_only,
-    summary_long  = summary_long,
-    summary_wide  = summary_wide,
-    unmapped      = unmapped
+    detail          = r_only,
+    summary_long    = summary_long,
+    summary_wide    = summary_wide,
+    class_avg_long  = class_avg_long,
+    class_avg_wide  = class_avg_wide,
+    unmapped        = unmapped
+  )
+}
+
+#' Rotation summary since the schedule change (AMION_SCHEDULE_CHANGE_AY
+#' through the current AY) — the "3-year cumulative for categorical
+#' residents" entry point. Thin wrapper over build_rotation_summary(): same
+#' logic, wider date range, with a floor that can't accidentally reach back
+#' into the pre-change schedule.
+#'
+#' See build_rotation_summary()'s class_avg NOTE — this wrapper inherits the
+#' same current-Level-only grouping caveat for multi-year pulls.
+#'
+#' @inheritParams build_rotation_summary
+#' @export
+build_rotation_summary_since_change <- function(rdm_token,
+                                                redcap_url,
+                                                amion_lo = AMION_LO_DEFAULT,
+                                                ay_end = current_ay_start(),
+                                                staff_types = c("R1", "R2", "R3"),
+                                                verified_only = TRUE) {
+  build_rotation_summary(
+    rdm_token = rdm_token,
+    redcap_url = redcap_url,
+    amion_lo = amion_lo,
+    ay_start = AMION_SCHEDULE_CHANGE_AY,
+    ay_end = ay_end,
+    staff_types = staff_types,
+    verified_only = verified_only
   )
 }
