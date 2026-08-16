@@ -115,7 +115,9 @@ to_int_time <- function(x) {
 
 #' Day-value (in days) for a single Amion assignment row, based on its
 #' Start/End time. Standard AM (0800-1200) and PM (1300-1700) half-day
-#' blocks count as 0.5; anything else counts as a full day (1.0).
+#' blocks count as 0.5. Shorter 2-hour PM blocks (1400-1600, 1500-1700 —
+#' seen on "Afternoon School"/"POCUS" sessions, confirmed with Fred
+#' 2026-08-16) count as 0.25. Anything else counts as a full day (1.0).
 #' @param start_time,end_time Character/numeric Start Time / End Time values.
 #' @export
 day_value <- function(start_time, end_time) {
@@ -124,6 +126,8 @@ day_value <- function(start_time, end_time) {
   dplyr::case_when(
     s_int ==  800 & e_int == 1200 ~ 0.5,
     s_int == 1300 & e_int == 1700 ~ 0.5,
+    s_int == 1400 & e_int == 1600 ~ 0.25,
+    s_int == 1500 & e_int == 1700 ~ 0.25,
     TRUE                          ~ 1.0
   )
 }

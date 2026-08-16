@@ -66,6 +66,36 @@ build_rotation_summary <- function(rdm_token,
       Day_Value = day_value(`Start Time`, `End Time`)
     )
 
+  # Correction (found + fixed 2026-08-16): r-type marker rows are often
+  # zero-duration (Amion just flags "this resident is on this rotation
+  # today"; the REAL time detail, when it exists, is in same-day c-type
+  # sessions). day_value() defaults an unrecognized/zero-duration row to a
+  # full 1.0 day, which is correct for genuine full-day rotations but wrong
+  # whenever c-type sessions exist that only cover part of the day (found:
+  # 55.5% of Continuity Clinic days with a matching c-session were actually
+  # half-days, not full days — 851.5 inflated days across the program this
+  # AY). Fix: when same-DATE c-type sessions exist AND their classified
+  # category matches this r-row's category, use their summed value instead.
+  # Matching on category (not just date) is deliberate — many inpatient
+  # rotations (SLU Floors, VA Floors, etc.) also have unrelated same-day
+  # c-sessions (e.g. a continuity clinic half-day carved out of an
+  # otherwise-inpatient week); those must NOT override the inpatient day's
+  # value just because a c-session happens to exist that date.
+  c_same_category <- amion |>
+    dplyr::filter(`Staff Type` %in% staff_types, `Assignment Type` == "c") |>
+    dplyr::inner_join(crosswalk, by = c("Staff ID" = "amion_staff_id")) |>
+    dplyr::mutate(
+      category  = classify_session(`Assignment Name`),
+      c_Day_Value = day_value(`Start Time`, `End Time`)
+    ) |>
+    dplyr::group_by(record_id, Date, category) |>
+    dplyr::summarise(c_Day_Value = sum(c_Day_Value), .groups = "drop")
+
+  r_only <- r_only |>
+    dplyr::left_join(c_same_category, by = c("record_id", "Date", "category")) |>
+    dplyr::mutate(Day_Value = dplyr::coalesce(c_Day_Value, Day_Value)) |>
+    dplyr::select(-c_Day_Value)
+
   unmapped <- r_only |>
     dplyr::filter(category == "UNMAPPED") |>
     dplyr::count(Grouping, sort = TRUE)

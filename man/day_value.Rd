@@ -4,7 +4,9 @@
 \alias{day_value}
 \title{Day-value (in days) for a single Amion assignment row, based on its
 Start/End time. Standard AM (0800-1200) and PM (1300-1700) half-day
-blocks count as 0.5; anything else counts as a full day (1.0).}
+blocks count as 0.5. Shorter 2-hour PM blocks (1400-1600, 1500-1700 —
+seen on "Afternoon School"/"POCUS" sessions, confirmed with Fred
+2026-08-16) count as 0.25. Anything else counts as a full day (1.0).}
 \usage{
 day_value(start_time, end_time)
 }
@@ -14,5 +16,7 @@ day_value(start_time, end_time)
 \description{
 Day-value (in days) for a single Amion assignment row, based on its
 Start/End time. Standard AM (0800-1200) and PM (1300-1700) half-day
-blocks count as 0.5; anything else counts as a full day (1.0).
+blocks count as 0.5. Shorter 2-hour PM blocks (1400-1600, 1500-1700 —
+seen on "Afternoon School"/"POCUS" sessions, confirmed with Fred
+2026-08-16) count as 0.25. Anything else counts as a full day (1.0).
 }
