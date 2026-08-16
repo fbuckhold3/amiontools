@@ -13,8 +13,10 @@
 # validated default categorical slots 1 (blue, #2a78d6) and 2 (orange,
 # #eb6834) for the two series — validated via scripts/validate_palette.js
 # (CVD ΔE 24.7, normal-vision ΔE 33.6, both clear of the floor). Only 2
-# series need distinct color here (You / Class Average) — the 7
-# super-categories are bar GROUPS, not color slots.
+# series need distinct color here (You / Class Average) — the
+# super-categories are bar GROUPS, not color slots, so this holds
+# regardless of how many exist (7 originally, 8 after Time Off was split
+# out — the chart pivots dynamically, no count is hardcoded here).
 # =============================================================================
 
 #' @importFrom shiny NS moduleServer reactive req validate need renderUI uiOutput tagList h5 p div HTML tags
