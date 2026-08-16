@@ -43,16 +43,27 @@ build_time_allocation_summary <- function(rdm_token,
                                           ay_start = current_ay_start(),
                                           ay_end = ay_start,
                                           staff_types = c("R1", "R2", "R3"),
-                                          verified_only = TRUE) {
+                                          verified_only = TRUE,
+                                          crosswalk = NULL,
+                                          amion = NULL) {
 
+  if (is.null(crosswalk)) {
+    crosswalk <- get_amion_crosswalk(rdm_token, redcap_url, verified_only = verified_only)
+  }
+
+  if (is.null(amion)) {
+    amion <- fetch_amion_data(urls = build_amion_urls(amion_lo, start_ay = ay_start, end_ay = ay_end))
+  }
+
+  # Reuse the same crosswalk/amion for the internal build_rotation_summary()
+  # call — this used to re-fetch both from scratch (found 2026-08-16, part
+  # of the ~4x redundant fetch problem when composing 3 modules in one tab).
   rotation <- build_rotation_summary(
     rdm_token = rdm_token, redcap_url = redcap_url, amion_lo = amion_lo,
     ay_start = ay_start, ay_end = ay_end,
-    staff_types = staff_types, verified_only = verified_only
+    staff_types = staff_types, verified_only = verified_only,
+    crosswalk = crosswalk, amion = amion
   )
-
-  crosswalk <- get_amion_crosswalk(rdm_token, redcap_url, verified_only = verified_only)
-  amion <- fetch_amion_data(urls = build_amion_urls(amion_lo, start_ay = ay_start, end_ay = ay_end))
 
   educational <- amion |>
     dplyr::filter(`Staff Type` %in% staff_types, `Assignment Type` == "c") |>

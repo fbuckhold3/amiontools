@@ -50,11 +50,17 @@ build_team_summary <- function(rdm_token,
                                ay_start = current_ay_start(),
                                ay_end = ay_start,
                                staff_types = c("R1", "R2", "R3"),
-                               verified_only = TRUE) {
+                               verified_only = TRUE,
+                               crosswalk = NULL,
+                               amion = NULL) {
 
-  crosswalk <- get_amion_crosswalk(rdm_token, redcap_url, verified_only = verified_only)
+  if (is.null(crosswalk)) {
+    crosswalk <- get_amion_crosswalk(rdm_token, redcap_url, verified_only = verified_only)
+  }
 
-  amion <- fetch_amion_data(urls = build_amion_urls(amion_lo, start_ay = ay_start, end_ay = ay_end))
+  if (is.null(amion)) {
+    amion <- fetch_amion_data(urls = build_amion_urls(amion_lo, start_ay = ay_start, end_ay = ay_end))
+  }
 
   o_only <- amion |>
     dplyr::filter(`Staff Type` %in% staff_types, `Assignment Type` == "o") |>

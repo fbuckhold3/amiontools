@@ -12,7 +12,9 @@ build_team_summary(
   ay_start = current_ay_start(),
   ay_end = ay_start,
   staff_types = c("R1", "R2", "R3"),
-  verified_only = TRUE
+  verified_only = TRUE,
+  crosswalk = NULL,
+  amion = NULL
 )
 }
 \arguments{
@@ -30,7 +32,17 @@ R1/R2/R3 (Chiefs are intentionally excluded — see amion_integration
 project notes: Chiefs have no active RDM resident_data record to
 crosswalk against, confirmed out of scope 2026-08-14).}
 
-\item{verified_only}{Passed through to get_amion_crosswalk().}
+\item{verified_only}{Passed through to get_amion_crosswalk(). Ignored if
+\code{crosswalk} is supplied directly.}
+
+\item{crosswalk, amion}{Optional pre-fetched data (from
+get_amion_crosswalk()/fetch_amion_data(), or the reactives returned by
+use_amion_data()\verb{()}'d in a Shiny context) — pass these when composing
+multiple build_*_summary() calls in one session to fetch once instead of
+each one re-fetching independently (found 2026-08-16: composing 3
+modules without this was doing ~4 redundant full-year Amion fetches per
+page load). NULL (default) fetches fresh, same as before — existing
+standalone callers are unaffected.}
 }
 \value{
 A list with:

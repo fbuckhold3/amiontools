@@ -41,16 +41,32 @@ mod_rotation_summary_ui <- function(id) {
 #'   only) — matches the near-term "this year vs this year's class" ask;
 #'   flip once a genuine multi-year view is wanted (see the class_avg
 #'   grouping caveat documented on build_rotation_summary()).
+#' @param crosswalk_r,amion_r Optional reactives (e.g. from
+#'   use_amion_data()) returning pre-fetched crosswalk/Amion data — pass
+#'   these when composing this module alongside others in one session to
+#'   fetch once instead of each module independently re-fetching. Ignored
+#'   when `since_change = TRUE` (that wrapper needs a wider date range than
+#'   a single-AY shared fetch would provide). NULL (default): fetches its
+#'   own data, same as before.
 #' @name mod_rotation_summary
 #' @export
 mod_rotation_summary_server <- function(id, resident_id, rdm_token, redcap_url,
                                         amion_lo = AMION_LO_DEFAULT,
-                                        since_change = FALSE) {
+                                        since_change = FALSE,
+                                        crosswalk_r = NULL,
+                                        amion_r = NULL) {
   shiny::moduleServer(id, function(input, output, session) {
 
     rotation_data <- shiny::reactive({
-      fn <- if (isTRUE(since_change)) build_rotation_summary_since_change else build_rotation_summary
-      fn(rdm_token = rdm_token, redcap_url = redcap_url, amion_lo = amion_lo)
+      if (isTRUE(since_change)) {
+        build_rotation_summary_since_change(rdm_token = rdm_token, redcap_url = redcap_url, amion_lo = amion_lo)
+      } else {
+        build_rotation_summary(
+          rdm_token = rdm_token, redcap_url = redcap_url, amion_lo = amion_lo,
+          crosswalk = if (!is.null(crosswalk_r)) crosswalk_r() else NULL,
+          amion     = if (!is.null(amion_r)) amion_r() else NULL
+        )
+      }
     })
 
     resident_row <- shiny::reactive({

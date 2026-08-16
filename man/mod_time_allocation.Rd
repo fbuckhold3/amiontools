@@ -13,7 +13,9 @@ mod_time_allocation_server(
   resident_id,
   rdm_token,
   redcap_url,
-  amion_lo = AMION_LO_DEFAULT
+  amion_lo = AMION_LO_DEFAULT,
+  crosswalk_r = NULL,
+  amion_r = NULL
 )
 }
 \arguments{
@@ -27,6 +29,14 @@ record_id (character/numeric coercible).}
 \item{redcap_url}{REDCap API URL.}
 
 \item{amion_lo}{Amion Lo= program token; defaults to AMION_LO_DEFAULT.}
+
+\item{crosswalk_r, amion_r}{Optional reactives (e.g. from
+use_amion_data()) returning pre-fetched crosswalk/Amion data — pass
+these when composing this module alongside others in one session to
+fetch once instead of each module independently re-fetching (this
+module in particular used to trigger its OWN extra internal re-fetch
+via build_rotation_summary() — see time_allocation_summary.R). NULL
+(default): fetches its own data, same as before.}
 }
 \description{
 Time-allocation module — UI + server.

@@ -14,7 +14,9 @@ mod_rotation_summary_server(
   rdm_token,
   redcap_url,
   amion_lo = AMION_LO_DEFAULT,
-  since_change = FALSE
+  since_change = FALSE,
+  crosswalk_r = NULL,
+  amion_r = NULL
 )
 }
 \arguments{
@@ -35,6 +37,14 @@ the current-AY-only build_rotation_summary(). Default FALSE (current AY
 only) — matches the near-term "this year vs this year's class" ask;
 flip once a genuine multi-year view is wanted (see the class_avg
 grouping caveat documented on build_rotation_summary()).}
+
+\item{crosswalk_r, amion_r}{Optional reactives (e.g. from
+use_amion_data()) returning pre-fetched crosswalk/Amion data — pass
+these when composing this module alongside others in one session to
+fetch once instead of each module independently re-fetching. Ignored
+when \code{since_change = TRUE} (that wrapper needs a wider date range than
+a single-AY shared fetch would provide). NULL (default): fetches its
+own data, same as before.}
 }
 \description{
 Rotation summary module — UI + server.

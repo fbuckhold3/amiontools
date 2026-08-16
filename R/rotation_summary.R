@@ -24,7 +24,16 @@ NULL
 #'   R1/R2/R3 (Chiefs are intentionally excluded — see amion_integration
 #'   project notes: Chiefs have no active RDM resident_data record to
 #'   crosswalk against, confirmed out of scope 2026-08-14).
-#' @param verified_only Passed through to get_amion_crosswalk().
+#' @param verified_only Passed through to get_amion_crosswalk(). Ignored if
+#'   `crosswalk` is supplied directly.
+#' @param crosswalk,amion Optional pre-fetched data (from
+#'   get_amion_crosswalk()/fetch_amion_data(), or the reactives returned by
+#'   use_amion_data()`()`'d in a Shiny context) — pass these when composing
+#'   multiple build_*_summary() calls in one session to fetch once instead of
+#'   each one re-fetching independently (found 2026-08-16: composing 3
+#'   modules without this was doing ~4 redundant full-year Amion fetches per
+#'   page load). NULL (default) fetches fresh, same as before — existing
+#'   standalone callers are unaffected.
 #' @return A list with:
 #'   - detail: every type=='r' row used, with `category` and `Level` attached
 #'   - summary_long: record_id/name/Level/category/Days (per resident)
@@ -52,11 +61,17 @@ build_rotation_summary <- function(rdm_token,
                                    ay_start = current_ay_start(),
                                    ay_end = ay_start,
                                    staff_types = c("R1", "R2", "R3"),
-                                   verified_only = TRUE) {
+                                   verified_only = TRUE,
+                                   crosswalk = NULL,
+                                   amion = NULL) {
 
-  crosswalk <- get_amion_crosswalk(rdm_token, redcap_url, verified_only = verified_only)
+  if (is.null(crosswalk)) {
+    crosswalk <- get_amion_crosswalk(rdm_token, redcap_url, verified_only = verified_only)
+  }
 
-  amion <- fetch_amion_data(urls = build_amion_urls(amion_lo, start_ay = ay_start, end_ay = ay_end))
+  if (is.null(amion)) {
+    amion <- fetch_amion_data(urls = build_amion_urls(amion_lo, start_ay = ay_start, end_ay = ay_end))
+  }
 
   r_only <- amion |>
     dplyr::filter(`Staff Type` %in% staff_types, `Assignment Type` == "r") |>
@@ -140,7 +155,14 @@ build_rotation_summary_since_change <- function(rdm_token,
                                                 amion_lo = AMION_LO_DEFAULT,
                                                 ay_end = current_ay_start(),
                                                 staff_types = c("R1", "R2", "R3"),
-                                                verified_only = TRUE) {
+                                                verified_only = TRUE,
+                                                crosswalk = NULL,
+                                                amion = NULL) {
+  # NOTE: crosswalk/amion passthrough here must match the WIDER
+  # AMION_SCHEDULE_CHANGE_AY -> ay_end range this wrapper pulls — a shared
+  # single-AY fetch from use_amion_data() is NOT the right shape to pass in
+  # here. Not currently used by any shared-fetch caller (since_change isn't
+  # wired into any UI yet); params exist for API symmetry.
   build_rotation_summary(
     rdm_token = rdm_token,
     redcap_url = redcap_url,
@@ -148,6 +170,8 @@ build_rotation_summary_since_change <- function(rdm_token,
     ay_start = AMION_SCHEDULE_CHANGE_AY,
     ay_end = ay_end,
     staff_types = staff_types,
-    verified_only = verified_only
+    verified_only = verified_only,
+    crosswalk = crosswalk,
+    amion = amion
   )
 }

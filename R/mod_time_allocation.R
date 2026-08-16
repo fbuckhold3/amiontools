@@ -62,14 +62,27 @@ mod_time_allocation_ui <- function(id) {
 #' @param rdm_token RDM REDCap API token (test or prod — caller's choice).
 #' @param redcap_url REDCap API URL.
 #' @param amion_lo Amion Lo= program token; defaults to AMION_LO_DEFAULT.
+#' @param crosswalk_r,amion_r Optional reactives (e.g. from
+#'   use_amion_data()) returning pre-fetched crosswalk/Amion data — pass
+#'   these when composing this module alongside others in one session to
+#'   fetch once instead of each module independently re-fetching (this
+#'   module in particular used to trigger its OWN extra internal re-fetch
+#'   via build_rotation_summary() — see time_allocation_summary.R). NULL
+#'   (default): fetches its own data, same as before.
 #' @name mod_time_allocation
 #' @export
 mod_time_allocation_server <- function(id, resident_id, rdm_token, redcap_url,
-                                       amion_lo = AMION_LO_DEFAULT) {
+                                       amion_lo = AMION_LO_DEFAULT,
+                                       crosswalk_r = NULL,
+                                       amion_r = NULL) {
   shiny::moduleServer(id, function(input, output, session) {
 
     alloc_data <- shiny::reactive({
-      build_time_allocation_summary(rdm_token = rdm_token, redcap_url = redcap_url, amion_lo = amion_lo)
+      build_time_allocation_summary(
+        rdm_token = rdm_token, redcap_url = redcap_url, amion_lo = amion_lo,
+        crosswalk = if (!is.null(crosswalk_r)) crosswalk_r() else NULL,
+        amion     = if (!is.null(amion_r)) amion_r() else NULL
+      )
     })
 
     resident_row <- shiny::reactive({
