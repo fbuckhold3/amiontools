@@ -3,8 +3,8 @@
 \name{build_time_allocation_summary}
 \alias{build_time_allocation_summary}
 \title{Build per-resident time allocation by super-category (Inpatient/
-Ambulatory/Continuity Clinic/Educational/Emergency/Elective/Other), plus
-per-class averages.}
+Ambulatory/Continuity Clinic/Educational/Emergency/Elective/Time Off/
+Other), plus per-class averages.}
 \usage{
 build_time_allocation_summary(
   rdm_token,
@@ -61,6 +61,6 @@ recognize — should be empty
 }
 \description{
 Build per-resident time allocation by super-category (Inpatient/
-Ambulatory/Continuity Clinic/Educational/Emergency/Elective/Other), plus
-per-class averages.
+Ambulatory/Continuity Clinic/Educational/Emergency/Elective/Time Off/
+Other), plus per-class averages.
 }

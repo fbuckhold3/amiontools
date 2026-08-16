@@ -1,8 +1,9 @@
 # =============================================================================
 # Unified time-allocation summary: rolls up rotation days (r-type, corrected
 # per rotation_summary.R) AND educational half-days (c-type, additive) into
-# the 7 super-categories (Inpatient/Ambulatory/Continuity Clinic/Educational/
-# Emergency/Elective/Other) Fred asked for 2026-08-16.
+# the 8 super-categories (Inpatient/Ambulatory/Continuity Clinic/Educational/
+# Emergency/Elective/Time Off/Other) Fred asked for 2026-08-16 (Time Off
+# split out of Other into its own bucket the same day).
 #
 # Educational time is ADDED on top of the underlying rotation day, not
 # carved out of it — e.g. a Wednesday afternoon "Educational Half Day"
@@ -22,8 +23,8 @@
 NULL
 
 #' Build per-resident time allocation by super-category (Inpatient/
-#' Ambulatory/Continuity Clinic/Educational/Emergency/Elective/Other), plus
-#' per-class averages.
+#' Ambulatory/Continuity Clinic/Educational/Emergency/Elective/Time Off/
+#' Other), plus per-class averages.
 #'
 #' @inheritParams build_rotation_summary
 #' @return A list with:

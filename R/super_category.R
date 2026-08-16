@@ -1,8 +1,11 @@
 # =============================================================================
 # Super-category rollup: every rotation/session category (from both
-# ROTATION_CATEGORY_MAP and SESSION_CATEGORY_MAP) collapsed into the 7
-# top-level buckets Fred asked for 2026-08-16: Inpatient, Ambulatory,
-# Continuity Clinic, Educational, Emergency, Elective, Other.
+# ROTATION_CATEGORY_MAP and SESSION_CATEGORY_MAP) collapsed into the 8
+# top-level buckets: Inpatient, Ambulatory, Continuity Clinic, Educational,
+# Emergency, Elective, Time Off, Other. (Confirmed with Fred 2026-08-16;
+# Time Off split out of the generic "Other" bucket into its own category
+# 2026-08-16 — vacation/holiday days are a metric worth seeing on their
+# own, not folded in alongside Jeopardy/Admin.)
 # =============================================================================
 
 #' Category (from either classify_rotation() or classify_session()) ->
@@ -31,13 +34,14 @@ SUPER_CATEGORY_MAP <- c(
 
   "Elective"            = "Elective",
 
-  "Time Off/Holiday"    = "Other",
+  "Time Off/Holiday"    = "Time Off",
+
   "Jeopardy"            = "Other",
   "Other/Admin"         = "Other"
 )
 
 #' Roll up a vector of categories (from classify_rotation() or
-#' classify_session()) into the 7 super-categories. Anything not in
+#' classify_session()) into the 8 super-categories. Anything not in
 #' SUPER_CATEGORY_MAP comes back as "UNMAPPED".
 #' @param category Character vector of category values.
 #' @export

@@ -3,7 +3,7 @@
 \name{classify_super_category}
 \alias{classify_super_category}
 \title{Roll up a vector of categories (from classify_rotation() or
-classify_session()) into the 7 super-categories. Anything not in
+classify_session()) into the 8 super-categories. Anything not in
 SUPER_CATEGORY_MAP comes back as "UNMAPPED".}
 \usage{
 classify_super_category(category)
@@ -13,6 +13,6 @@ classify_super_category(category)
 }
 \description{
 Roll up a vector of categories (from classify_rotation() or
-classify_session()) into the 7 super-categories. Anything not in
+classify_session()) into the 8 super-categories. Anything not in
 SUPER_CATEGORY_MAP comes back as "UNMAPPED".
 }
