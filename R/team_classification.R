@@ -66,23 +66,29 @@
   c("VA Floors C Intern", "team", "VA Floors C", "Intern", NA),
   c("VA Floors D Intern", "team", "VA Floors D", "Intern", NA),
 
-  c("NF ICU Intern", "nf_coverage", NA, "Intern", "covers ICU"),
-  c("NF Intern A", "nf_coverage", NA, "Intern", "A (service unclear)"),
-  c("NF Intern B", "nf_coverage", NA, "Intern", "B (service unclear)"),
-  c("NF Med Admissions", "nf_coverage", NA, NA, "covers Med Admissions"),
-  c("NF Resident A (VA Night Resident)", "nf_coverage", NA, "Resident", "covers VA nights"),
-  c("NF Resident B (MICU)", "nf_coverage", NA, "Resident", "covers MICU nights"),
-  c("NF Resident C (Cards Bronze)", "nf_coverage", NA, "Resident", "covers Cards Bronze nights"),
+  c("NF ICU Intern", "nf_coverage", "Night Float", "Intern", "covers ICU"),
+  c("NF Intern A", "nf_coverage", "Night Float", "Intern", "A (service unclear)"),
+  c("NF Intern B", "nf_coverage", "Night Float", "Intern", "B (service unclear)"),
+  c("NF Med Admissions", "nf_coverage", "Night Float", NA, "covers Med Admissions"),
+  c("NF Resident A (VA Night Resident)", "nf_coverage", "Night Float", "Resident", "covers VA nights"),
+  c("NF Resident B (MICU)", "nf_coverage", "Night Float", "Resident", "covers MICU nights"),
+  c("NF Resident C (Cards Bronze)", "nf_coverage", "Night Float", "Resident", "covers Cards Bronze nights"),
 
+  # team attribution added 2026-08-17 where the label itself specifies a
+  # rotation (Fred wanted off-days visible/reconciled against on-team days).
+  # "Intern off"/"SLU Res off"/"SLU Res Off B" stay unattributed (team=NA)
+  # -- genuinely ambiguous which rotation they're from, Amion just doesn't
+  # say. Note MICU off-labels don't distinguish MICU 1 vs MICU 2 either
+  # (coarser than the on-team attribution, which does) -- same limitation.
   c("Intern off", "status_off", NA, "Intern", NA),
-  c("MICU Intern off", "status_off", NA, "Intern", NA),
-  c("MICU Resident Off", "status_off", NA, "Resident", NA),
-  c("NF Intern Off", "status_off", NA, "Intern", NA),
-  c("NF Resident Off", "status_off", NA, "Resident", NA),
+  c("MICU Intern off", "status_off", "MICU", "Intern", NA),
+  c("MICU Resident Off", "status_off", "MICU", "Resident", NA),
+  c("NF Intern Off", "status_off", "Night Float", "Intern", NA),
+  c("NF Resident Off", "status_off", "Night Float", "Resident", NA),
   c("SLU Res off", "status_off", NA, NA, NA),
   c("SLU Res Off B", "status_off", NA, NA, "B"),
-  c("VA Floor Intern Off", "status_off", NA, "Intern", NA),
-  c("VA Floor Resident Off", "status_off", NA, "Resident", NA),
+  c("VA Floor Intern Off", "status_off", "VA Floors", "Intern", NA),
+  c("VA Floor Resident Off", "status_off", "VA Floors", "Resident", NA),
 
   c("Intern A on call", "status_call", NA, "Intern", "A"),
   c("Intern B on call", "status_call", NA, "Intern", "B"),

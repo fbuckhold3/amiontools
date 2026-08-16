@@ -16,7 +16,7 @@
 #' @importFrom shiny NS moduleServer reactive req validate need renderUI uiOutput tagList h5 p
 #' @importFrom shinycssloaders withSpinner
 #' @importFrom DT renderDT DTOutput datatable formatRound
-#' @importFrom dplyr filter select any_of
+#' @importFrom dplyr filter select any_of bind_rows
 #' @importFrom tidyr pivot_longer
 NULL
 
@@ -65,19 +65,16 @@ mod_team_summary_server <- function(id, resident_id, rdm_token, redcap_url,
         dplyr::filter(record_id == resident_id())
     })
 
-    comparison_table <- shiny::reactive({
-      shiny::req(team_data())
-      shiny::validate(
-        shiny::need(nrow(resident_row()) > 0,
-                    "No Amion schedule data available for this resident.")
-      )
+    # Builds a You/Class-Average long table from one wide/class_avg_wide
+    # pair (on-duty or off-duty), optionally suffixing team names (e.g.
+    # "MICU" -> "MICU (Off)") so both can be combined into one table.
+    .build_long <- function(wide, class_wide, level, suffix = "") {
+      res_row <- wide |> dplyr::filter(record_id == resident_id())
+      if (nrow(res_row) == 0) return(NULL)
 
-      res_row  <- resident_row()
-      level    <- res_row$Level[1]
-      class_row <- team_data()$class_avg_wide |>
-        dplyr::filter(Level == level)
-
+      class_row <- class_wide |> dplyr::filter(Level == level)
       team_cols <- setdiff(names(res_row), c("record_id", "name", "Level"))
+      if (length(team_cols) == 0) return(NULL)
 
       res_long <- res_row |>
         dplyr::select(dplyr::any_of(team_cols)) |>
@@ -89,9 +86,27 @@ mod_team_summary_server <- function(id, resident_id, rdm_token, redcap_url,
                             values_to = "Class Average")
 
       merged <- merge(res_long, class_long, by = "Team", all = TRUE)
-      # Drop teams this resident and their whole class both show zero on —
+      merged$Team <- paste0(merged$Team, suffix)
+      merged
+    }
+
+    comparison_table <- shiny::reactive({
+      shiny::req(team_data())
+      shiny::validate(
+        shiny::need(nrow(resident_row()) > 0,
+                    "No Amion schedule data available for this resident.")
+      )
+
+      level <- resident_row()$Level[1]
+
+      on_duty_long  <- .build_long(team_data()$team_summary_wide, team_data()$class_avg_wide, level)
+      off_duty_long <- .build_long(team_data()$off_summary_wide, team_data()$off_class_avg_wide, level, suffix = " (Off)")
+
+      merged <- dplyr::bind_rows(on_duty_long, off_duty_long)
+      # Drop rows this resident and their whole class both show zero on —
       # e.g. an intern's row full of Bronze/Cardiology/Diamond/Gold zeros —
-      # keeps the table to teams actually relevant to this resident's class.
+      # keeps the table to teams/off-buckets actually relevant to this
+      # resident's class.
       merged <- merged[!(merged$You == 0 & merged$`Class Average` == 0), ]
       merged[order(-merged$You), ]
     })
@@ -101,7 +116,7 @@ mod_team_summary_server <- function(id, resident_id, rdm_token, redcap_url,
       shiny::tagList(
         shiny::h5(paste0("Team Assignments — ", resident_row()$Level[1], " class")),
         shiny::p(class = "text-muted small",
-                 "Days on each specific team (e.g. Green, MICU 1, VA Floors C), current academic year, vs. this resident's class average.")
+                 "Days on each specific team (e.g. Green, MICU 1, VA Floors C) and days off during that rotation, current academic year, vs. this resident's class average.")
       )
     })
 

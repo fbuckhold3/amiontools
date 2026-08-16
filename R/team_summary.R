@@ -1,7 +1,7 @@
 # =============================================================================
 # Team-level assignment summary: fetch Amion -> join RDM crosswalk ->
-# restrict to Assignment Type == "o", kind == "team" -> count distinct days
-# per resident per team/role/slot, plus program-wide and per-class averages.
+# restrict to Assignment Type == "o" -> count distinct days per resident per
+# team/role/slot, plus program-wide and per-class averages.
 #
 # Counts DISTINCT CALENDAR DAYS, not hours. o-type row duration is unreliable
 # for this population — the same Assignment Name shows up both as a
@@ -15,34 +15,48 @@
 # day (e.g. a team assignment + a status_call tag) - confirmed 2026-08-15,
 # ~14% of resident-dates with any 'o' row. That's expected, not deduped:
 # each (resident, team, role, slot) combo is counted independently.
+#
+# On-duty (2026-08-17) covers kind %in% c("team", "nf_coverage") - Night
+# Float used to be excluded entirely (tracked as "coverage", not "team"),
+# which meant NF off-days had nothing to reconcile against. Now Night
+# Float is its own on-duty bucket like any ward team.
+#
+# Off-duty (2026-08-17, new) mirrors the on-duty structure for kind ==
+# "status_off" rows - Fred wanted off-days during a rotation visible, not
+# silently dropped. Team attribution is coarser here than on-duty: some
+# off labels don't say which rotation they're from ("Intern off", "SLU Res
+# off") - those land in a team="Unspecified" bucket rather than being
+# guessed at. MICU off-labels also don't distinguish MICU 1 vs MICU 2
+# (on-duty does) - same underlying limitation, Amion's off labels are just
+# less specific than its on-team labels.
 # =============================================================================
 
 #' @importFrom dplyr inner_join filter mutate group_by summarise count distinct n_distinct
 #' @importFrom tidyr pivot_wider
 NULL
 
-#' Build per-resident team-assignment day counts, plus program-wide and
-#' per-class averages.
+#' Build per-resident team-assignment day counts (on-duty AND off-duty),
+#' plus program-wide and per-class averages for each.
 #'
 #' @inheritParams build_rotation_summary
 #' @return A list with:
-#'   - detail: every Assignment Type=='o', kind=='team' row used, with
+#'   - detail, detail_off: every Assignment Type=='o' row used for each
+#'     (kind %in% c("team","nf_coverage") / kind=="status_off"), with
 #'     team/role/slot attached
-#'   - team_summary_long: record_id/name/Level/team/role/slot/Days (distinct
-#'     calendar days) — full granularity
-#'   - team_summary_wide: one row per resident (+ Level), one column per
-#'     TEAM (role/slot collapsed — summed) — the "how many days on
-#'     Green/Yellow/etc" view
-#'   - program_avg_long, program_avg_wide: same shape, averaged across ALL
+#'   - team_summary_long, off_summary_long: record_id/name/Level/team/
+#'     role/slot/Days (distinct calendar days) — full granularity
+#'   - team_summary_wide, off_summary_wide: one row per resident (+ Level),
+#'     one column per TEAM (role/slot collapsed — summed)
+#'   - program_avg_long, program_avg_wide: on-duty only, averaged across ALL
 #'     matched residents (Fred's "program as a whole" ask) rather than
 #'     grouped by class
-#'   - class_avg_wide: per-Level average per team (role/slot collapsed) —
-#'     included alongside the program-wide average since Level is already
-#'     on hand from the crosswalk; same current-Level-only caveat as
-#'     build_rotation_summary()'s class_avg for multi-year pulls
+#'   - class_avg_wide, off_class_avg_wide: per-Level average per team
+#'     (role/slot collapsed) for on-duty and off-duty respectively —
+#'     same current-Level-only caveat as build_rotation_summary()'s
+#'     class_avg for multi-year pulls
 #'   - unmapped: any Assignment Name values classify_team_assignment()
-#'     didn't recognize, across ALL kinds (not just "team") — should be
-#'     empty; non-empty means TEAM_ASSIGNMENT_MAP needs a new entry
+#'     didn't recognize, across ALL kinds — should be empty; non-empty
+#'     means TEAM_ASSIGNMENT_MAP needs a new entry
 #' @export
 build_team_summary <- function(rdm_token,
                                redcap_url,
@@ -76,42 +90,55 @@ build_team_summary <- function(rdm_token,
     dplyr::filter(kind == "UNMAPPED") |>
     dplyr::count(`Assignment Name`, sort = TRUE)
 
-  detail <- o_only |> dplyr::filter(kind == "team")
+  .day_counts_by_team <- function(rows) {
+    long <- rows |>
+      dplyr::distinct(record_id, name, Level, team, role, slot, Date) |>
+      dplyr::group_by(record_id, name, Level, team, role, slot) |>
+      dplyr::summarise(Days = dplyr::n_distinct(Date), .groups = "drop")
 
-  team_summary_long <- detail |>
-    dplyr::distinct(record_id, name, Level, team, role, slot, Date) |>
-    dplyr::group_by(record_id, name, Level, team, role, slot) |>
-    dplyr::summarise(Days = dplyr::n_distinct(Date), .groups = "drop")
+    by_resident <- long |>
+      dplyr::group_by(record_id, name, Level, team) |>
+      dplyr::summarise(Days = sum(Days), .groups = "drop")
 
-  # Collapsed-to-team-only view (role/slot summed) for the wide table
-  team_days_by_resident <- team_summary_long |>
-    dplyr::group_by(record_id, name, Level, team) |>
-    dplyr::summarise(Days = sum(Days), .groups = "drop")
+    wide <- by_resident |>
+      tidyr::pivot_wider(names_from = team, values_from = Days, values_fill = 0)
 
-  team_summary_wide <- team_days_by_resident |>
-    tidyr::pivot_wider(names_from = team, values_from = Days, values_fill = 0)
+    class_avg_wide <- by_resident |>
+      dplyr::group_by(Level, team) |>
+      dplyr::summarise(Avg_Days = mean(Days), .groups = "drop") |>
+      tidyr::pivot_wider(names_from = team, values_from = Avg_Days, values_fill = 0)
 
-  program_avg_long <- team_summary_long |>
+    list(long = long, by_resident = by_resident, wide = wide, class_avg_wide = class_avg_wide)
+  }
+
+  detail <- o_only |> dplyr::filter(kind %in% c("team", "nf_coverage"))
+  on_duty <- .day_counts_by_team(detail)
+
+  detail_off <- o_only |>
+    dplyr::filter(kind == "status_off") |>
+    dplyr::mutate(team = ifelse(is.na(team), "Unspecified", team))
+  off_duty <- .day_counts_by_team(detail_off)
+
+  program_avg_long <- on_duty$long |>
     dplyr::group_by(team, role, slot) |>
     dplyr::summarise(Avg_Days = mean(Days), .groups = "drop")
 
-  program_avg_wide <- team_days_by_resident |>
+  program_avg_wide <- on_duty$by_resident |>
     dplyr::group_by(team) |>
-    dplyr::summarise(Avg_Days = mean(Days), .groups = "drop") |>
-    tidyr::pivot_wider(names_from = team, values_from = Avg_Days, values_fill = 0)
-
-  class_avg_wide <- team_days_by_resident |>
-    dplyr::group_by(Level, team) |>
     dplyr::summarise(Avg_Days = mean(Days), .groups = "drop") |>
     tidyr::pivot_wider(names_from = team, values_from = Avg_Days, values_fill = 0)
 
   list(
     detail             = detail,
-    team_summary_long  = team_summary_long,
-    team_summary_wide  = team_summary_wide,
+    detail_off         = detail_off,
+    team_summary_long  = on_duty$long,
+    team_summary_wide  = on_duty$wide,
+    off_summary_long   = off_duty$long,
+    off_summary_wide   = off_duty$wide,
     program_avg_long   = program_avg_long,
     program_avg_wide   = program_avg_wide,
-    class_avg_wide     = class_avg_wide,
+    class_avg_wide     = on_duty$class_avg_wide,
+    off_class_avg_wide = off_duty$class_avg_wide,
     unmapped           = unmapped
   )
 }
