@@ -18,8 +18,10 @@ Imports:
     gmed,
     httr,
     lubridate,
+    plotly,
     REDCapR,
     shiny,
+    shinycssloaders,
     tidyr
 Suggests:
     testthat (>= 3.0.0)

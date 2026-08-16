@@ -14,6 +14,7 @@
 # =============================================================================
 
 #' @importFrom shiny NS moduleServer reactive req validate need renderUI uiOutput tagList h5 p
+#' @importFrom shinycssloaders withSpinner
 #' @importFrom DT renderDT DTOutput datatable formatRound
 #' @importFrom dplyr filter select any_of
 #' @importFrom tidyr pivot_longer
@@ -25,7 +26,7 @@ mod_team_summary_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
     shiny::uiOutput(ns("header")),
-    DT::DTOutput(ns("table"))
+    shinycssloaders::withSpinner(DT::DTOutput(ns("table")), type = 6, color = "#2a78d6", size = 0.5)
   )
 }
 
