@@ -100,7 +100,9 @@ mod_team_summary_server <- function(id, resident_id, rdm_token, redcap_url,
       level <- resident_row()$Level[1]
 
       on_duty_long  <- .build_long(team_data()$team_summary_wide, team_data()$class_avg_wide, level)
-      off_duty_long <- .build_long(team_data()$off_summary_wide, team_data()$off_class_avg_wide, level, suffix = " (Off)")
+      # off_summary_wide is now a single "Off" column (all status_off
+      # entries collapsed together, not suffixed per-team) - no suffix needed.
+      off_duty_long <- .build_long(team_data()$off_summary_wide, team_data()$off_class_avg_wide, level)
 
       merged <- dplyr::bind_rows(on_duty_long, off_duty_long)
       # Drop rows this resident and their whole class both show zero on —
@@ -116,7 +118,7 @@ mod_team_summary_server <- function(id, resident_id, rdm_token, redcap_url,
       shiny::tagList(
         shiny::h5(paste0("Team Assignments — ", resident_row()$Level[1], " class")),
         shiny::p(class = "text-muted small",
-                 "Days on each specific team (e.g. Green, MICU 1, VA Floors C) and days off during that rotation, current academic year, vs. this resident's class average.")
+                 "Days on each specific team (e.g. Green, MICU 1, VA Floors C) plus total days off, current academic year, vs. this resident's class average.")
       )
     })
 

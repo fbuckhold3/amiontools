@@ -52,8 +52,10 @@ A list with:
 team/role/slot attached
 \item team_summary_long, off_summary_long: record_id/name/Level/team/
 role/slot/Days (distinct calendar days) — full granularity
-\item team_summary_wide, off_summary_wide: one row per resident (+ Level),
-one column per TEAM (role/slot collapsed — summed)
+\item team_summary_wide: one row per resident (+ Level), one column per
+TEAM (role/slot collapsed — summed). off_summary_wide: same shape
+but a single "Off" column (all status_off entries collapsed
+together, not broken out per rotation — Fred's call 2026-08-17)
 \item program_avg_long, program_avg_wide: on-duty only, averaged across ALL
 matched residents (Fred's "program as a whole" ask) rather than
 grouped by class

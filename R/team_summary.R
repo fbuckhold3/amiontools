@@ -23,12 +23,14 @@
 #
 # Off-duty (2026-08-17, new) mirrors the on-duty structure for kind ==
 # "status_off" rows - Fred wanted off-days during a rotation visible, not
-# silently dropped. Team attribution is coarser here than on-duty: some
-# off labels don't say which rotation they're from ("Intern off", "SLU Res
-# off") - those land in a team="Unspecified" bucket rather than being
-# guessed at. MICU off-labels also don't distinguish MICU 1 vs MICU 2
-# (on-duty does) - same underlying limitation, Amion's off labels are just
-# less specific than its on-team labels.
+# silently dropped. Collapsed into a single generic "Off" bucket (Fred's
+# call, same day, after initially asking for per-rotation attribution) -
+# also sidesteps the fact that some off labels don't say which rotation
+# they're from ("Intern off", "SLU Res off"), so per-rotation attribution
+# would have been incomplete anyway. TEAM_ASSIGNMENT_MAP still carries
+# team attribution on the off-status entries where the label specifies one
+# (kept for the daily detail log / potential future use) - just not used
+# for this aggregation anymore.
 # =============================================================================
 
 #' @importFrom dplyr inner_join filter mutate group_by summarise count distinct n_distinct
@@ -45,8 +47,10 @@ NULL
 #'     team/role/slot attached
 #'   - team_summary_long, off_summary_long: record_id/name/Level/team/
 #'     role/slot/Days (distinct calendar days) — full granularity
-#'   - team_summary_wide, off_summary_wide: one row per resident (+ Level),
-#'     one column per TEAM (role/slot collapsed — summed)
+#'   - team_summary_wide: one row per resident (+ Level), one column per
+#'     TEAM (role/slot collapsed — summed). off_summary_wide: same shape
+#'     but a single "Off" column (all status_off entries collapsed
+#'     together, not broken out per rotation — Fred's call 2026-08-17)
 #'   - program_avg_long, program_avg_wide: on-duty only, averaged across ALL
 #'     matched residents (Fred's "program as a whole" ask) rather than
 #'     grouped by class
@@ -114,9 +118,13 @@ build_team_summary <- function(rdm_token,
   detail <- o_only |> dplyr::filter(kind %in% c("team", "nf_coverage"))
   on_duty <- .day_counts_by_team(detail)
 
+  # Collapsed into one generic "Off" bucket (Fred's call 2026-08-17) rather
+  # than broken out per rotation — simpler, and sidesteps the label
+  # ambiguity noted above (which rotation an "Intern off"/"SLU Res off" day
+  # belongs to isn't always recoverable from Amion's data anyway).
   detail_off <- o_only |>
     dplyr::filter(kind == "status_off") |>
-    dplyr::mutate(team = ifelse(is.na(team), "Unspecified", team))
+    dplyr::mutate(team = "Off")
   off_duty <- .day_counts_by_team(detail_off)
 
   program_avg_long <- on_duty$long |>
