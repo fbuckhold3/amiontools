@@ -21,7 +21,7 @@
 # which meant NF off-days had nothing to reconcile against. Now Night
 # Float is its own on-duty bucket like any ward team.
 #
-# Off-duty (2026-08-17, new) mirrors the on-duty structure for kind ==
+# Off-duty (2026-08-17) mirrors the on-duty structure for kind ==
 # "status_off" rows - Fred wanted off-days during a rotation visible, not
 # silently dropped. Collapsed into a single generic "Off" bucket (Fred's
 # call, same day, after initially asking for per-rotation attribution) -
@@ -31,9 +31,27 @@
 # team attribution on the off-status entries where the label specifies one
 # (kept for the daily detail log / potential future use) - just not used
 # for this aggregation anymore.
+#
+# Off-duty ALSO includes inferred days (2026-08-17, same day, found while
+# investigating why "Off" looked low): on a genuine ward-roster rotation
+# (SLUH Inpatient/ICU/VA Inpatient/Night Float - the categories that
+# actually have o-type team entries in TEAM_ASSIGNMENT_MAP), a day can have
+# an r-type row (rotation continues) but ZERO o-type rows of any kind - not
+# even an explicit off label. Confirmed real and substantial: 4,926
+# resident-days program-wide, 86 for one spot-checked resident alone vs.
+# only 14 documented off-label days for that same person. These are folded
+# into the same "Off" total (source="inferred" in detail_off, vs.
+# source="documented" for an explicit Amion label) - Fred confirmed the
+# magnitude ("good") before this was built. Deliberately NOT extended to
+# non-ward categories (Continuity Clinic, Elective, Ambulatory, VACA) -
+# those categories don't use Amion's team-roster concept at all, so "no
+# o-row" there is normal, not a sign of an uncounted day off (VACA in
+# particular is already tracked as its own category elsewhere).
 # =============================================================================
 
-#' @importFrom dplyr inner_join filter mutate group_by summarise count distinct n_distinct
+.WARD_ROSTER_CATEGORIES <- c("SLUH Inpatient", "ICU", "VA Inpatient", "Night Float")
+
+#' @importFrom dplyr inner_join filter mutate group_by summarise count distinct n_distinct bind_rows anti_join select
 #' @importFrom tidyr pivot_wider
 NULL
 
@@ -42,9 +60,12 @@ NULL
 #'
 #' @inheritParams build_rotation_summary
 #' @return A list with:
-#'   - detail, detail_off: every Assignment Type=='o' row used for each
-#'     (kind %in% c("team","nf_coverage") / kind=="status_off"), with
-#'     team/role/slot attached
+#'   - detail: every Assignment Type=='o' row used for on-duty
+#'     (kind %in% c("team","nf_coverage")), with team/role/slot attached
+#'   - detail_off: one row per off day, `source` = "documented" (an
+#'     explicit Amion status_off label) or "inferred" (ward-roster
+#'     rotation, r-type row present, zero o-type rows that date — see file
+#'     header)
 #'   - team_summary_long, off_summary_long: record_id/name/Level/team/
 #'     role/slot/Days (distinct calendar days) — full granularity
 #'   - team_summary_wide: one row per resident (+ Level), one column per
@@ -122,9 +143,29 @@ build_team_summary <- function(rdm_token,
   # than broken out per rotation — simpler, and sidesteps the label
   # ambiguity noted above (which rotation an "Intern off"/"SLU Res off" day
   # belongs to isn't always recoverable from Amion's data anyway).
-  detail_off <- o_only |>
+  documented_off <- o_only |>
     dplyr::filter(kind == "status_off") |>
-    dplyr::mutate(team = "Off")
+    dplyr::mutate(team = "Off", source = "documented") |>
+    dplyr::select(record_id, name, Level, Date, team, role, slot, source)
+
+  # Inferred off-days: ward-roster rotation, r-type row present, but zero
+  # o-type rows of ANY kind that date (see file header). o_only is already
+  # staff_type-filtered + crosswalk-joined, so this anti_join is against
+  # the same population documented_off comes from.
+  r_ward <- amion |>
+    dplyr::filter(`Staff Type` %in% staff_types, `Assignment Type` == "r") |>
+    dplyr::inner_join(crosswalk, by = c("Staff ID" = "amion_staff_id")) |>
+    dplyr::mutate(category = classify_rotation(Grouping)) |>
+    dplyr::filter(category %in% .WARD_ROSTER_CATEGORIES) |>
+    dplyr::distinct(record_id, name, Level, Date)
+
+  o_any_dates <- o_only |> dplyr::distinct(record_id, Date)
+
+  inferred_off <- r_ward |>
+    dplyr::anti_join(o_any_dates, by = c("record_id", "Date")) |>
+    dplyr::mutate(team = "Off", role = NA_character_, slot = NA_character_, source = "inferred")
+
+  detail_off <- dplyr::bind_rows(documented_off, inferred_off)
   off_duty <- .day_counts_by_team(detail_off)
 
   program_avg_long <- on_duty$long |>

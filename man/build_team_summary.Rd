@@ -47,9 +47,12 @@ standalone callers are unaffected.}
 \value{
 A list with:
 \itemize{
-\item detail, detail_off: every Assignment Type=='o' row used for each
-(kind \%in\% c("team","nf_coverage") / kind=="status_off"), with
-team/role/slot attached
+\item detail: every Assignment Type=='o' row used for on-duty
+(kind \%in\% c("team","nf_coverage")), with team/role/slot attached
+\item detail_off: one row per off day, \code{source} = "documented" (an
+explicit Amion status_off label) or "inferred" (ward-roster
+rotation, r-type row present, zero o-type rows that date — see file
+header)
 \item team_summary_long, off_summary_long: record_id/name/Level/team/
 role/slot/Days (distinct calendar days) — full granularity
 \item team_summary_wide: one row per resident (+ Level), one column per
