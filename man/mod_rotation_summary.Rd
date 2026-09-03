@@ -16,7 +16,8 @@ mod_rotation_summary_server(
   amion_lo = AMION_LO_DEFAULT,
   since_change = FALSE,
   crosswalk_r = NULL,
-  amion_r = NULL
+  amion_r = NULL,
+  summary_r = NULL
 )
 }
 \arguments{
@@ -45,6 +46,14 @@ fetch once instead of each module independently re-fetching. Ignored
 when \code{since_change = TRUE} (that wrapper needs a wider date range than
 a single-AY shared fetch would provide). NULL (default): fetches its
 own data, same as before.}
+
+\item{summary_r}{Optional reactive (e.g. from
+\code{use_amion_data_cached()}) returning a pre-built
+\code{list(summary_wide=, class_avg_wide=)} — same shape
+\code{build_rotation_summary()} returns. When supplied, skips both the
+live fetch (crosswalk_r/amion_r ignored) AND the local aggregation
+entirely — for the REDCap-cache-backed path. NULL (default): unchanged
+live-fetch behavior. Ignored when \code{since_change = TRUE}.}
 }
 \description{
 Rotation summary module — UI + server.

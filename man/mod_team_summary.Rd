@@ -15,7 +15,8 @@ mod_team_summary_server(
   redcap_url,
   amion_lo = AMION_LO_DEFAULT,
   crosswalk_r = NULL,
-  amion_r = NULL
+  amion_r = NULL,
+  summary_r = NULL
 )
 }
 \arguments{
@@ -35,6 +36,14 @@ use_amion_data()) returning pre-fetched crosswalk/Amion data — pass
 these when composing this module alongside others in one session to
 fetch once instead of each module independently re-fetching. NULL
 (default): fetches its own data, same as before.}
+
+\item{summary_r}{Optional reactive (e.g. from
+\code{use_amion_data_cached()}) returning a pre-built
+\code{list(team_summary_wide=, class_avg_wide=, off_summary_wide=,
+off_class_avg_wide=)} — same shape \code{build_team_summary()} returns.
+When supplied, skips both the live fetch (crosswalk_r/amion_r ignored)
+AND the local aggregation entirely. NULL (default): unchanged
+live-fetch behavior.}
 }
 \description{
 Team-assignment summary module — UI + server.

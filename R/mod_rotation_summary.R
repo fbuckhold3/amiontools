@@ -48,17 +48,27 @@ mod_rotation_summary_ui <- function(id) {
 #'   when `since_change = TRUE` (that wrapper needs a wider date range than
 #'   a single-AY shared fetch would provide). NULL (default): fetches its
 #'   own data, same as before.
+#' @param summary_r Optional reactive (e.g. from
+#'   \code{use_amion_data_cached()}) returning a pre-built
+#'   \code{list(summary_wide=, class_avg_wide=)} — same shape
+#'   \code{build_rotation_summary()} returns. When supplied, skips both the
+#'   live fetch (crosswalk_r/amion_r ignored) AND the local aggregation
+#'   entirely — for the REDCap-cache-backed path. NULL (default): unchanged
+#'   live-fetch behavior. Ignored when `since_change = TRUE`.
 #' @name mod_rotation_summary
 #' @export
 mod_rotation_summary_server <- function(id, resident_id, rdm_token, redcap_url,
                                         amion_lo = AMION_LO_DEFAULT,
                                         since_change = FALSE,
                                         crosswalk_r = NULL,
-                                        amion_r = NULL) {
+                                        amion_r = NULL,
+                                        summary_r = NULL) {
   shiny::moduleServer(id, function(input, output, session) {
 
     rotation_data <- shiny::reactive({
-      if (isTRUE(since_change)) {
+      if (!is.null(summary_r) && !isTRUE(since_change)) {
+        summary_r()
+      } else if (isTRUE(since_change)) {
         build_rotation_summary_since_change(rdm_token = rdm_token, redcap_url = redcap_url, amion_lo = amion_lo)
       } else {
         build_rotation_summary(

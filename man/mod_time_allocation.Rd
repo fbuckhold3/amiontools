@@ -15,7 +15,8 @@ mod_time_allocation_server(
   redcap_url,
   amion_lo = AMION_LO_DEFAULT,
   crosswalk_r = NULL,
-  amion_r = NULL
+  amion_r = NULL,
+  summary_r = NULL
 )
 }
 \arguments{
@@ -37,6 +38,13 @@ fetch once instead of each module independently re-fetching (this
 module in particular used to trigger its OWN extra internal re-fetch
 via build_rotation_summary() — see time_allocation_summary.R). NULL
 (default): fetches its own data, same as before.}
+
+\item{summary_r}{Optional reactive (e.g. from
+\code{use_amion_data_cached()}) returning a pre-built
+\code{list(summary_wide=, class_avg_wide=)} — same shape
+\code{build_time_allocation_summary()} returns. When supplied, skips
+both the live fetch (crosswalk_r/amion_r ignored) AND the local
+aggregation entirely. NULL (default): unchanged live-fetch behavior.}
 }
 \description{
 Time-allocation module — UI + server.

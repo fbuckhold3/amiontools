@@ -71,20 +71,31 @@ mod_time_allocation_ui <- function(id) {
 #'   module in particular used to trigger its OWN extra internal re-fetch
 #'   via build_rotation_summary() — see time_allocation_summary.R). NULL
 #'   (default): fetches its own data, same as before.
+#' @param summary_r Optional reactive (e.g. from
+#'   \code{use_amion_data_cached()}) returning a pre-built
+#'   \code{list(summary_wide=, class_avg_wide=)} — same shape
+#'   \code{build_time_allocation_summary()} returns. When supplied, skips
+#'   both the live fetch (crosswalk_r/amion_r ignored) AND the local
+#'   aggregation entirely. NULL (default): unchanged live-fetch behavior.
 #' @name mod_time_allocation
 #' @export
 mod_time_allocation_server <- function(id, resident_id, rdm_token, redcap_url,
                                        amion_lo = AMION_LO_DEFAULT,
                                        crosswalk_r = NULL,
-                                       amion_r = NULL) {
+                                       amion_r = NULL,
+                                       summary_r = NULL) {
   shiny::moduleServer(id, function(input, output, session) {
 
     alloc_data <- shiny::reactive({
-      build_time_allocation_summary(
-        rdm_token = rdm_token, redcap_url = redcap_url, amion_lo = amion_lo,
-        crosswalk = if (!is.null(crosswalk_r)) crosswalk_r() else NULL,
-        amion     = if (!is.null(amion_r)) amion_r() else NULL
-      )
+      if (!is.null(summary_r)) {
+        summary_r()
+      } else {
+        build_time_allocation_summary(
+          rdm_token = rdm_token, redcap_url = redcap_url, amion_lo = amion_lo,
+          crosswalk = if (!is.null(crosswalk_r)) crosswalk_r() else NULL,
+          amion     = if (!is.null(amion_r)) amion_r() else NULL
+        )
+      }
     })
 
     resident_row <- shiny::reactive({
