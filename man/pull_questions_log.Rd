@@ -14,10 +14,13 @@ pull_questions_log(rdm_token, redcap_url)
 }
 \value{
 Tibble: record_id, Date, q_conference_type (raw code "1"-"4",
-or a future 5th "Other" choice once added to the dictionary). One row
-per logged entry — a resident can have zero, one, or more than one
-entry per date (e.g. both SLUH and VA logged the same day is possible,
-though unusual).
+or a future 5th "Other" choice once added to the dictionary),
+entry_date (the calendar date the entry was actually SAVED — same as
+Date for a real-time submission, later for an after-the-fact one; lets
+callers distinguish "attended, logged live" from "attended, logged
+late"). One row per logged entry — a resident can have zero, one, or
+more than one entry per date (e.g. both SLUH and VA logged the same
+day is possible, though unusual).
 }
 \description{
 Pull the RDM 2.0 "questions" form (conference attendance log) for every
