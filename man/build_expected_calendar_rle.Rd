@@ -45,10 +45,9 @@ page load). NULL (default) fetches fresh, same as before — existing
 standalone callers are unaffected.}
 }
 \value{
-Data frame: record_id (integer), start, end (Date), expected
-("S"/"V"/"N" — single-char codes, matching
-\code{EXPECTED_CONFERENCE_MAP}'s "SLUH"/"VA"/"None" but compact for
-the cache payload).
+Data frame: record_id (integer), start, end (Date), category
+(character, from \code{classify_rotation()}), expected ("SLUH"/"VA"/
+"None").
 }
 \description{
 Build the RLE-encoded expected-conference calendar for every

@@ -3,25 +3,24 @@
 \name{expand_expected_calendar_rle}
 \alias{expand_expected_calendar_rle}
 \title{Expand an RLE-encoded expected-conference calendar back into one row
-per (record_id, Date, expected) — the shape
+per (record_id, Date, category, expected) — the shape
 \code{build_attendance_reconciliation()}/\code{build_conference_calendar_data()}
 consume.}
 \usage{
 expand_expected_calendar_rle(calendar_rle)
 }
 \arguments{
-\item{calendar_rle}{Data frame (record_id, start, end, expected) — from
-\code{build_expected_calendar_rle()} or
+\item{calendar_rle}{Data frame (record_id, start, end, category,
+expected) — from \code{build_expected_calendar_rle()} or
 \code{gmed::load_cached_expected_calendar()}.}
 }
 \value{
 Data frame: record_id (character, matching daily_detail's own
-type), Date, expected ("SLUH"/"VA"/"None" — expanded back from the
-single-char cache code).
+type), Date, category, expected.
 }
 \description{
 Expand an RLE-encoded expected-conference calendar back into one row
-per (record_id, Date, expected) — the shape
+per (record_id, Date, category, expected) — the shape
 \code{build_attendance_reconciliation()}/\code{build_conference_calendar_data()}
 consume.
 }

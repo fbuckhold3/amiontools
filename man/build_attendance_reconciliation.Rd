@@ -15,7 +15,8 @@ build_attendance_reconciliation(
   verified_only = TRUE,
   crosswalk = NULL,
   amion = NULL,
-  questions_log = NULL
+  questions_log = NULL,
+  expected_calendar = NULL
 )
 }
 \arguments{
@@ -49,6 +50,14 @@ standalone callers are unaffected.}
 \code{pull_questions_log()}). NULL (default): fetches it. Deliberately
 NOT cached anywhere in this ecosystem (see the caching-architecture
 decision, 2026-09-03) — resident self-report, always live.}
+
+\item{expected_calendar}{Optional pre-built per-day expected-conference
+table (record_id, Date, expected) — e.g. from
+\code{expand_expected_calendar_rle(gmed::load_cached_expected_calendar())}.
+When supplied, skips \code{build_daily_detail()}'s live Amion fetch
+entirely for the expected-conference side (still needs \code{crosswalk}
+for name/Level, which is cheap — an RDM-only pull, not Amion). NULL
+(default): computed live from \code{amion}/\code{crosswalk} as before.}
 }
 \value{
 A list:

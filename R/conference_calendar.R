@@ -34,6 +34,12 @@ NULL
 #'   program-wide detail).
 #' @param questions_log Optional pre-fetched log (from
 #'   \code{pull_questions_log()}). NULL (default): fetches it.
+#' @param expected_calendar Optional pre-built per-day expected-conference
+#'   table (record_id, Date, category, expected) — e.g. from
+#'   \code{expand_expected_calendar_rle(gmed::load_cached_expected_calendar())}.
+#'   When supplied, skips \code{build_daily_detail()}'s live Amion fetch
+#'   entirely. NULL (default): computed live from \code{amion}/
+#'   \code{crosswalk} as before.
 #' @return Tibble, one row per weekday in `[ay_start, min(ay_end, today)]`:
 #'   Date, week_start (the Monday of that Date's week — for grouping into
 #'   calendar rows), weekday_label ("Mon".."Fri"), expected ("SLUH"/"VA"/
@@ -49,14 +55,8 @@ build_conference_calendar_data <- function(record_id, rdm_token, redcap_url,
                                             verified_only = TRUE,
                                             crosswalk = NULL,
                                             amion = NULL,
-                                            questions_log = NULL) {
-
-  dd <- build_daily_detail(
-    rdm_token = rdm_token, redcap_url = redcap_url, amion_lo = amion_lo,
-    ay_start = ay_start, ay_end = ay_end, staff_types = staff_types,
-    verified_only = verified_only, crosswalk = crosswalk, amion = amion
-  )
-  dd <- dd[dd$record_id == as.character(record_id), ]
+                                            questions_log = NULL,
+                                            expected_calendar = NULL) {
 
   if (is.null(questions_log)) {
     questions_log <- pull_questions_log(rdm_token, redcap_url)
@@ -73,9 +73,23 @@ build_conference_calendar_data <- function(record_id, rdm_token, redcap_url,
   cal$week_start <- cal$Date - (as.integer(format(cal$Date, "%u")) - 1)
   cal$weekday_label <- format(cal$Date, "%a")
 
-  cal <- cal |> dplyr::left_join(dd[, c("Date", "Rotation", "Clinic_Sessions")], by = "Date")
-  cal$category <- classify_rotation(cal$Rotation)
-  cal$expected <- classify_expected_conference(cal$category, cal$Clinic_Sessions)
+  if (!is.null(expected_calendar)) {
+    # Cache-fed path: no live Amion fetch.
+    ec <- expected_calendar[expected_calendar$record_id == as.character(record_id), ]
+    cal <- cal |> dplyr::left_join(ec[, c("Date", "category", "expected")], by = "Date")
+    cal$expected[is.na(cal$expected)] <- "None"
+  } else {
+    dd <- build_daily_detail(
+      rdm_token = rdm_token, redcap_url = redcap_url, amion_lo = amion_lo,
+      ay_start = ay_start, ay_end = ay_end, staff_types = staff_types,
+      verified_only = verified_only, crosswalk = crosswalk, amion = amion
+    )
+    dd <- dd[dd$record_id == as.character(record_id), ]
+
+    cal <- cal |> dplyr::left_join(dd[, c("Date", "Rotation", "Clinic_Sessions")], by = "Date")
+    cal$category <- classify_rotation(cal$Rotation)
+    cal$expected <- classify_expected_conference(cal$category, cal$Clinic_Sessions)
+  }
 
   # First log entry (if any) per date, for this resident.
   log_by_day <- log_rid |>

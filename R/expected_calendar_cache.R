@@ -5,8 +5,17 @@
 # Program-wide, every resident, every weekday of the full AY (Amion
 # pre-builds the whole year, so "expected" is knowable in advance even for
 # future dates -- unlike attendance itself, which can only be known once
-# the day has actually happened). RLE by consecutive same-expected-value
-# date runs per resident, since rotation blocks run multi-day/week.
+# the day has actually happened). RLE by consecutive same-(category,
+# expected) runs per resident, since rotation blocks run multi-day/week.
+#
+# Encodes BOTH category (e.g. "SLUH Inpatient") and expected ("SLUH"/"VA"/
+# "None") -- category is what build_conference_calendar_data() needs to
+# reconstruct a real detail_text ("Bronze" is more useful than "SLUH
+# expected"). Measured live: adding category costs almost nothing (same
+# 5,448 runs, 41.5 KB vs 34.1 KB expected-only) since the two are highly
+# correlated -- the CC-VA-pm exception is the one case where the same
+# category splits into two expected values, and grouping the RLE run by
+# BOTH columns together (not just expected) captures that correctly.
 # =============================================================================
 
 #' @importFrom dplyr arrange group_by mutate summarise lag first
@@ -16,10 +25,9 @@ NULL
 #' crosswalked resident.
 #'
 #' @inheritParams build_rotation_summary
-#' @return Data frame: record_id (integer), start, end (Date), expected
-#'   ("S"/"V"/"N" — single-char codes, matching
-#'   \code{EXPECTED_CONFERENCE_MAP}'s "SLUH"/"VA"/"None" but compact for
-#'   the cache payload).
+#' @return Data frame: record_id (integer), start, end (Date), category
+#'   (character, from \code{classify_rotation()}), expected ("SLUH"/"VA"/
+#'   "None").
 #' @export
 build_expected_calendar_rle <- function(rdm_token, redcap_url,
                                          amion_lo = AMION_LO_DEFAULT,
@@ -37,46 +45,44 @@ build_expected_calendar_rle <- function(rdm_token, redcap_url,
   )
 
   dd$category <- classify_rotation(dd$Rotation)
-  dd$expected_full <- classify_expected_conference(dd$category, dd$Clinic_Sessions)
-  dd$expected <- substr(dd$expected_full, 1, 1)  # "SLUH"/"VA"/"None" -> "S"/"V"/"N"
+  dd$expected <- classify_expected_conference(dd$category, dd$Clinic_Sessions)
 
   is_weekday <- !format(dd$Date, "%u") %in% c("6", "7")
-  compact <- dd[is_weekday, c("record_id", "Date", "expected")]
+  compact <- dd[is_weekday, c("record_id", "Date", "category", "expected")]
   compact$record_id <- as.integer(compact$record_id)
 
   compact |>
     dplyr::arrange(record_id, Date) |>
     dplyr::group_by(record_id) |>
     dplyr::mutate(
-      new_run = expected != dplyr::lag(expected, default = dplyr::first(expected)) |
+      new_run = category != dplyr::lag(category, default = dplyr::first(category)) |
+                expected != dplyr::lag(expected, default = dplyr::first(expected)) |
                 Date != dplyr::lag(Date, default = dplyr::first(Date) - 1) + 1,
       run_id = cumsum(new_run)
     ) |>
-    dplyr::group_by(record_id, run_id, expected) |>
+    dplyr::group_by(record_id, run_id, category, expected) |>
     dplyr::summarise(start = min(Date), end = max(Date), .groups = "drop") |>
     dplyr::arrange(record_id, start) |>
-    dplyr::select(record_id, start, end, expected)
+    dplyr::select(record_id, start, end, category, expected)
 }
 
 #' Expand an RLE-encoded expected-conference calendar back into one row
-#' per (record_id, Date, expected) — the shape
+#' per (record_id, Date, category, expected) — the shape
 #' \code{build_attendance_reconciliation()}/\code{build_conference_calendar_data()}
 #' consume.
 #'
-#' @param calendar_rle Data frame (record_id, start, end, expected) — from
-#'   \code{build_expected_calendar_rle()} or
+#' @param calendar_rle Data frame (record_id, start, end, category,
+#'   expected) — from \code{build_expected_calendar_rle()} or
 #'   \code{gmed::load_cached_expected_calendar()}.
 #' @return Data frame: record_id (character, matching daily_detail's own
-#'   type), Date, expected ("SLUH"/"VA"/"None" — expanded back from the
-#'   single-char cache code).
+#'   type), Date, category, expected.
 #' @export
 expand_expected_calendar_rle <- function(calendar_rle) {
   if (is.null(calendar_rle) || nrow(calendar_rle) == 0) {
     return(data.frame(record_id = character(), Date = as.Date(character()),
-                       expected = character(), stringsAsFactors = FALSE))
+                       category = character(), expected = character(),
+                       stringsAsFactors = FALSE))
   }
-
-  code_to_full <- c(S = "SLUH", V = "VA", N = "None")
 
   rows <- lapply(seq_len(nrow(calendar_rle)), function(i) {
     r <- calendar_rle[i, ]
@@ -84,7 +90,8 @@ expand_expected_calendar_rle <- function(calendar_rle) {
     data.frame(
       record_id = as.character(r$record_id),
       Date      = dates,
-      expected  = unname(code_to_full[r$expected]),
+      category  = r$category,
+      expected  = r$expected,
       stringsAsFactors = FALSE
     )
   })

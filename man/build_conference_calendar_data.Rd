@@ -16,7 +16,8 @@ build_conference_calendar_data(
   verified_only = TRUE,
   crosswalk = NULL,
   amion = NULL,
-  questions_log = NULL
+  questions_log = NULL,
+  expected_calendar = NULL
 )
 }
 \arguments{
@@ -52,6 +53,13 @@ standalone callers are unaffected.}
 
 \item{questions_log}{Optional pre-fetched log (from
 \code{pull_questions_log()}). NULL (default): fetches it.}
+
+\item{expected_calendar}{Optional pre-built per-day expected-conference
+table (record_id, Date, category, expected) — e.g. from
+\code{expand_expected_calendar_rle(gmed::load_cached_expected_calendar())}.
+When supplied, skips \code{build_daily_detail()}'s live Amion fetch
+entirely. NULL (default): computed live from \code{amion}/
+\code{crosswalk} as before.}
 }
 \value{
 Tibble, one row per weekday in \verb{[ay_start, min(ay_end, today)]}:
