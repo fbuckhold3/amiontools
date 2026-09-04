@@ -32,10 +32,24 @@ NULL
 #'   Intern/PGY2/PGY3 cells are \code{NA} for a training year not covered by
 #'   post-rebuild data (not a guessed 0) — Total sums only the populated
 #'   cells.
+#' @param current_ay_amion Optional pre-fetched Amion data for the CURRENT
+#'   AY only (e.g. the same reactive `use_amion_data()` already fetched for
+#'   other modules in the same session) — reused for that one AY's
+#'   iteration instead of fetching again. Any other post-rebuild AY in the
+#'   loop (none yet, but this will matter starting AY2027-28) still fetches
+#'   its own, since a single-year fetch can't cover multiple years. NULL
+#'   (default): fetches every AY itself, same as before.
+#' @return A list with two tibbles, both Category × Intern/PGY2/PGY3/Total:
+#'   \code{by_resident} (record_id, name, Category, Intern, PGY2, PGY3,
+#'   Total — one resident's own days) and \code{class_avg} (Category,
+#'   Intern, PGY2, PGY3, Total — the average across every resident who held
+#'   that Level in that AY). Intern/PGY2/PGY3 cells are \code{NA} for a
+#'   training year not covered by post-rebuild data (not a guessed 0).
 #' @export
 build_rotation_by_training_year <- function(rdm_token, redcap_url,
                                              amion_lo = AMION_LO_DEFAULT,
-                                             crosswalk = NULL) {
+                                             crosswalk = NULL,
+                                             current_ay_amion = NULL) {
   if (is.null(crosswalk)) {
     crosswalk <- get_amion_crosswalk(rdm_token, redcap_url, verified_only = TRUE)
   }
@@ -57,9 +71,14 @@ build_rotation_by_training_year <- function(rdm_token, redcap_url,
     level_at_ay <- gmed::calculate_resident_level(raw, current_date = ref_date)
     level_at_ay <- level_at_ay[, c("record_id", "Level")]
 
+    # Reuse a pre-fetched current-AY Amion pull if this iteration IS the
+    # current AY (avoids a redundant live fetch when a caller already has
+    # it, e.g. ind.dash's shared use_amion_data() reactive).
+    ay_amion <- if (!is.null(current_ay_amion) && ay == current_ay_start()) current_ay_amion else NULL
+
     ay_rot <- build_rotation_summary(
       rdm_token = rdm_token, redcap_url = redcap_url, amion_lo = amion_lo,
-      ay_start = ay, ay_end = ay, crosswalk = crosswalk
+      ay_start = ay, ay_end = ay, crosswalk = crosswalk, amion = ay_amion
     )$summary_wide
 
     ay_rot$Level <- NULL  # drop crosswalk's "as of today" Level
@@ -77,15 +96,29 @@ build_rotation_by_training_year <- function(rdm_token, redcap_url,
     tidyr::pivot_longer(df, dplyr::all_of(category_cols), names_to = "Category", values_to = "Days")
   }))
 
-  wide <- long |>
+  by_resident_long <- long |>
     dplyr::group_by(record_id, name, Level, Category) |>
-    dplyr::summarise(Days = sum(Days, na.rm = TRUE), .groups = "drop") |>
-    tidyr::pivot_wider(names_from = Level, values_from = Days, values_fill = NA_real_)
+    dplyr::summarise(Days = sum(Days, na.rm = TRUE), .groups = "drop")
 
-  for (lvl in c("Intern", "PGY2", "PGY3")) {
-    if (!lvl %in% names(wide)) wide[[lvl]] <- NA_real_
+  # Class average: mean across every resident who held that Level in that
+  # AY, per category -- the same "average across the cohort" concept as
+  # every other table's Class Average column, just computed per training
+  # year instead of only the current AY.
+  class_avg_long <- by_resident_long |>
+    dplyr::group_by(Level, Category) |>
+    dplyr::summarise(Days = mean(Days, na.rm = TRUE), .groups = "drop")
+
+  .to_wide_with_total <- function(df, id_cols) {
+    w <- df |> tidyr::pivot_wider(names_from = Level, values_from = Days, values_fill = NA_real_)
+    for (lvl in c("Intern", "PGY2", "PGY3")) {
+      if (!lvl %in% names(w)) w[[lvl]] <- NA_real_
+    }
+    w$Total <- rowSums(w[, c("Intern", "PGY2", "PGY3")], na.rm = TRUE)
+    w[, c(id_cols, "Intern", "PGY2", "PGY3", "Total")]
   }
 
-  wide$Total <- rowSums(wide[, c("Intern", "PGY2", "PGY3")], na.rm = TRUE)
-  wide[, c("record_id", "name", "Category", "Intern", "PGY2", "PGY3", "Total")]
+  list(
+    by_resident = .to_wide_with_total(by_resident_long, c("record_id", "name", "Category")),
+    class_avg   = .to_wide_with_total(class_avg_long, "Category")
+  )
 }

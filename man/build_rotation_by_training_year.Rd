@@ -8,7 +8,8 @@ build_rotation_by_training_year(
   rdm_token,
   redcap_url,
   amion_lo = AMION_LO_DEFAULT,
-  crosswalk = NULL
+  crosswalk = NULL,
+  current_ay_amion = NULL
 )
 }
 \arguments{
@@ -20,12 +21,27 @@ build_rotation_by_training_year(
 
 \item{crosswalk}{Optional pre-fetched crosswalk (from
 \code{get_amion_crosswalk()}). NULL (default): fetches it.}
+
+\item{current_ay_amion}{Optional pre-fetched Amion data for the CURRENT
+AY only (e.g. the same reactive \code{use_amion_data()} already fetched for
+other modules in the same session) — reused for that one AY's
+iteration instead of fetching again. Any other post-rebuild AY in the
+loop (none yet, but this will matter starting AY2027-28) still fetches
+its own, since a single-year fetch can't cover multiple years. NULL
+(default): fetches every AY itself, same as before.}
 }
 \value{
 Tibble: record_id, name, Category, Intern, PGY2, PGY3, Total.
 Intern/PGY2/PGY3 cells are \code{NA} for a training year not covered by
 post-rebuild data (not a guessed 0) — Total sums only the populated
 cells.
+
+A list with two tibbles, both Category × Intern/PGY2/PGY3/Total:
+\code{by_resident} (record_id, name, Category, Intern, PGY2, PGY3,
+Total — one resident's own days) and \code{class_avg} (Category,
+Intern, PGY2, PGY3, Total — the average across every resident who held
+that Level in that AY). Intern/PGY2/PGY3 cells are \code{NA} for a
+training year not covered by post-rebuild data (not a guessed 0).
 }
 \description{
 Build the Intern/PGY2/PGY3/Total rotation-day breakdown per resident.

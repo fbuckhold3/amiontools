@@ -13,7 +13,9 @@ mod_rotation_by_year_server(
   resident_id,
   rdm_token,
   redcap_url,
-  amion_lo = AMION_LO_DEFAULT
+  amion_lo = AMION_LO_DEFAULT,
+  crosswalk_r = NULL,
+  amion_r = NULL
 )
 }
 \arguments{
@@ -27,6 +29,11 @@ record_id (character/numeric coercible).}
 \item{redcap_url}{REDCap API URL.}
 
 \item{amion_lo}{Amion Lo= program token; defaults to AMION_LO_DEFAULT.}
+
+\item{crosswalk_r, amion_r}{Optional reactives (e.g. from
+use_amion_data()) returning pre-fetched crosswalk/current-AY Amion
+data — reused for the current AY's iteration instead of fetching
+again. NULL (default): fetches its own data.}
 }
 \description{
 Rotation-by-training-year module — UI + server.
