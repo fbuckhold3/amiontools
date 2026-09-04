@@ -9,7 +9,8 @@ build_rotation_by_training_year(
   redcap_url,
   amion_lo = AMION_LO_DEFAULT,
   crosswalk = NULL,
-  current_ay_amion = NULL
+  current_ay_amion = NULL,
+  current_ay_rotation = NULL
 )
 }
 \arguments{
@@ -25,10 +26,22 @@ build_rotation_by_training_year(
 \item{current_ay_amion}{Optional pre-fetched Amion data for the CURRENT
 AY only (e.g. the same reactive \code{use_amion_data()} already fetched for
 other modules in the same session) — reused for that one AY's
-iteration instead of fetching again. Any other post-rebuild AY in the
-loop (none yet, but this will matter starting AY2027-28) still fetches
-its own, since a single-year fetch can't cover multiple years. NULL
-(default): fetches every AY itself, same as before.}
+iteration instead of fetching again, IF \code{current_ay_rotation} isn't
+also supplied (that one skips the fetch entirely — see below). Any
+other post-rebuild AY in the loop (none yet, but this will matter
+starting AY2027-28) still fetches its own, since a single-year fetch
+can't cover multiple years. NULL (default): fetches every AY itself.}
+
+\item{current_ay_rotation}{Optional pre-computed
+\code{list(summary_wide=, class_avg_wide=)} for the CURRENT AY only —
+the exact shape \code{use_amion_data_cached()$rotation()} already
+returns from the REDCap cache. When supplied, the current AY's
+iteration skips BOTH the live Amion fetch and the local
+\code{build_rotation_summary()} recompute entirely (its crosswalk-
+derived Level is already valid for the current AY, no "Level as of
+this AY" override needed) — reads straight from the cache instead.
+Takes priority over \code{current_ay_amion} when both are supplied. NULL
+(default): current AY computed the same way as every other AY.}
 }
 \value{
 Tibble: record_id, name, Category, Intern, PGY2, PGY3, Total.

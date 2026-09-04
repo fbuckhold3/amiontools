@@ -5,14 +5,15 @@
 # build_rotation_by_training_year()'s file header for why a training year
 # can show blank (not available) rather than a number.
 #
-# Deliberately NOT wired through the REDCap cache yet -- brand new,
-# unvalidated by Fred beyond a couple of spot-checks. Live fetch only until
-# it earns the same trust the other 3 aggregate sections have. DOES accept
-# the shared crosswalk_r/amion_r reactives (unlike its first version) --
-# build_rotation_by_training_year() only needs its OWN separate fetch for
-# post-rebuild AYs other than the current one (none exist yet), so the
-# current AY's iteration can reuse the same live fetch mod_daily_detail
-# already triggers, avoiding a second redundant ~15-20s Amion pull.
+# The current AY's own data isn't fetched or recomputed at all when a
+# cached_rotation_r reactive is supplied (e.g. from
+# use_amion_data_cached()$rotation) -- it's the exact same data already
+# sitting in the REDCap cache, just reshaped into the Intern/PGY2/PGY3
+# breakdown. Falls back to crosswalk_r/amion_r (reuse mod_daily_detail's
+# live fetch) or a fully independent fetch, in that priority order, if the
+# cache isn't available. Only post-rebuild AYs other than the current one
+# (none exist yet, but this will matter starting AY2027-28) ever need a
+# real fetch of their own.
 # =============================================================================
 
 #' @importFrom shiny NS moduleServer reactive req validate need renderUI uiOutput tagList h5 p
@@ -42,20 +43,30 @@ mod_rotation_by_year_ui <- function(id) {
 #' @param crosswalk_r,amion_r Optional reactives (e.g. from
 #'   use_amion_data()) returning pre-fetched crosswalk/current-AY Amion
 #'   data — reused for the current AY's iteration instead of fetching
-#'   again. NULL (default): fetches its own data.
+#'   again, if `cached_rotation_r` isn't also supplied. NULL (default):
+#'   fetches its own data.
+#' @param cached_rotation_r Optional reactive (e.g.
+#'   \code{use_amion_data_cached()$rotation}) returning the current AY's
+#'   pre-computed rotation summary straight from the REDCap cache — when
+#'   supplied, the current AY's contribution to this table costs nothing
+#'   extra (no live fetch, no recompute). Takes priority over
+#'   crosswalk_r/amion_r when both are supplied. NULL (default): current AY
+#'   computed like any other.
 #' @name mod_rotation_by_year
 #' @export
 mod_rotation_by_year_server <- function(id, resident_id, rdm_token, redcap_url,
                                         amion_lo = AMION_LO_DEFAULT,
                                         crosswalk_r = NULL,
-                                        amion_r = NULL) {
+                                        amion_r = NULL,
+                                        cached_rotation_r = NULL) {
   shiny::moduleServer(id, function(input, output, session) {
 
     by_year_data <- shiny::reactive({
       build_rotation_by_training_year(
         rdm_token = rdm_token, redcap_url = redcap_url, amion_lo = amion_lo,
         crosswalk = if (!is.null(crosswalk_r)) crosswalk_r() else NULL,
-        current_ay_amion = if (!is.null(amion_r)) amion_r() else NULL
+        current_ay_amion = if (!is.null(amion_r)) amion_r() else NULL,
+        current_ay_rotation = if (!is.null(cached_rotation_r)) cached_rotation_r() else NULL
       )
     })
 

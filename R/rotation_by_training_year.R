@@ -35,10 +35,21 @@ NULL
 #' @param current_ay_amion Optional pre-fetched Amion data for the CURRENT
 #'   AY only (e.g. the same reactive `use_amion_data()` already fetched for
 #'   other modules in the same session) — reused for that one AY's
-#'   iteration instead of fetching again. Any other post-rebuild AY in the
-#'   loop (none yet, but this will matter starting AY2027-28) still fetches
-#'   its own, since a single-year fetch can't cover multiple years. NULL
-#'   (default): fetches every AY itself, same as before.
+#'   iteration instead of fetching again, IF `current_ay_rotation` isn't
+#'   also supplied (that one skips the fetch entirely — see below). Any
+#'   other post-rebuild AY in the loop (none yet, but this will matter
+#'   starting AY2027-28) still fetches its own, since a single-year fetch
+#'   can't cover multiple years. NULL (default): fetches every AY itself.
+#' @param current_ay_rotation Optional pre-computed
+#'   \code{list(summary_wide=, class_avg_wide=)} for the CURRENT AY only —
+#'   the exact shape \code{use_amion_data_cached()$rotation()} already
+#'   returns from the REDCap cache. When supplied, the current AY's
+#'   iteration skips BOTH the live Amion fetch and the local
+#'   \code{build_rotation_summary()} recompute entirely (its crosswalk-
+#'   derived Level is already valid for the current AY, no "Level as of
+#'   this AY" override needed) — reads straight from the cache instead.
+#'   Takes priority over `current_ay_amion` when both are supplied. NULL
+#'   (default): current AY computed the same way as every other AY.
 #' @return A list with two tibbles, both Category × Intern/PGY2/PGY3/Total:
 #'   \code{by_resident} (record_id, name, Category, Intern, PGY2, PGY3,
 #'   Total — one resident's own days) and \code{class_avg} (Category,
@@ -49,23 +60,37 @@ NULL
 build_rotation_by_training_year <- function(rdm_token, redcap_url,
                                              amion_lo = AMION_LO_DEFAULT,
                                              crosswalk = NULL,
-                                             current_ay_amion = NULL) {
-  if (is.null(crosswalk)) {
+                                             current_ay_amion = NULL,
+                                             current_ay_rotation = NULL) {
+  if (is.null(crosswalk) && is.null(current_ay_rotation)) {
     crosswalk <- get_amion_crosswalk(rdm_token, redcap_url, verified_only = TRUE)
   }
 
   ays <- AMION_SCHEDULE_CHANGE_AY:current_ay_start()
 
   # Raw type/grad_yr pull, undecorated with a Level column -- needed to
-  # recompute "Level as of THIS AY" per year below. crosswalk's own Level
-  # column is always "as of today", which is only correct for the current
-  # AY's iteration.
-  raw <- REDCapR::redcap_read(
-    redcap_uri = redcap_url, token = rdm_token,
-    fields = c("record_id", "type", "grad_yr")
-  )$data
+  # recompute "Level as of THIS AY" for any AY NOT served by
+  # current_ay_rotation below. crosswalk's own Level column is always "as
+  # of today", which is only correct for the current AY's iteration.
+  # Skipped entirely if every AY in the loop is covered by
+  # current_ay_rotation (true today: only one post-rebuild AY exists).
+  needs_raw_level_pull <- is.null(current_ay_rotation) || length(ays) > 1
+  raw <- if (needs_raw_level_pull) {
+    REDCapR::redcap_read(
+      redcap_uri = redcap_url, token = rdm_token,
+      fields = c("record_id", "type", "grad_yr")
+    )$data
+  } else NULL
 
   per_ay <- lapply(ays, function(ay) {
+    # Fast path: this IS the current AY and a pre-computed cache result was
+    # supplied -- its Level column (crosswalk's "as of today") is already
+    # correct for the current AY, so use it as-is. No live fetch, no
+    # local recompute, no Level-as-of-this-AY override.
+    if (!is.null(current_ay_rotation) && ay == current_ay_start()) {
+      return(current_ay_rotation$summary_wide)
+    }
+
     # Level as of a safe mid-year date (avoids the July 1 rollover boundary).
     ref_date <- as.Date(sprintf("%d-11-01", ay))
     level_at_ay <- gmed::calculate_resident_level(raw, current_date = ref_date)

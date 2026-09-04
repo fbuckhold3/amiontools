@@ -15,7 +15,8 @@ mod_rotation_by_year_server(
   redcap_url,
   amion_lo = AMION_LO_DEFAULT,
   crosswalk_r = NULL,
-  amion_r = NULL
+  amion_r = NULL,
+  cached_rotation_r = NULL
 )
 }
 \arguments{
@@ -33,7 +34,16 @@ record_id (character/numeric coercible).}
 \item{crosswalk_r, amion_r}{Optional reactives (e.g. from
 use_amion_data()) returning pre-fetched crosswalk/current-AY Amion
 data — reused for the current AY's iteration instead of fetching
-again. NULL (default): fetches its own data.}
+again, if \code{cached_rotation_r} isn't also supplied. NULL (default):
+fetches its own data.}
+
+\item{cached_rotation_r}{Optional reactive (e.g.
+\code{use_amion_data_cached()$rotation}) returning the current AY's
+pre-computed rotation summary straight from the REDCap cache — when
+supplied, the current AY's contribution to this table costs nothing
+extra (no live fetch, no recompute). Takes priority over
+crosswalk_r/amion_r when both are supplied. NULL (default): current AY
+computed like any other.}
 }
 \description{
 Rotation-by-training-year module — UI + server.
