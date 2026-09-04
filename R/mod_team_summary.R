@@ -130,7 +130,15 @@ mod_team_summary_server <- function(id, resident_id, rdm_token, redcap_url,
       shiny::tagList(
         shiny::h5(paste0("Team Assignments — ", resident_row()$Level[1], " class")),
         shiny::p(class = "text-muted small",
-                 "Days on each specific team (e.g. Green, MICU 1, VA Floors C) plus total days off, current academic year, vs. this resident's class average.")
+                 sprintf(
+                   paste0(
+                     "Days on each specific team (e.g. Green, MICU 1, VA Floors C) plus total days off, ",
+                     "through today (%s) — vs. this resident's class average over the same window. ",
+                     "Amion only fills in detailed team rosters a few months ahead, so this total is ",
+                     "smaller than the full-year Rotation Days table above — that's expected, not missing data."
+                   ),
+                   format(Sys.Date(), "%b %d, %Y")
+                 ))
       )
     })
 
