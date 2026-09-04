@@ -1,14 +1,19 @@
 # =============================================================================
 # Shiny module: redesigned attendance calendar (Fred, 2026-09-04) — weeks
 # as rows, 4-color status (green=attended on time, yellow=attended late,
-# red=missing, black=not expected/excused), native hover tooltip showing
-# the day's actual scheduled activity. Replaces the old attended/no-entry/
-# upcoming heatmap AND the raw "Your Attendance History" table in
-# mod_attendance.R — this calendar is the only day-level view now.
+# red=missing, black=not expected/excused). Replaces the old
+# attended/no-entry/upcoming heatmap AND the raw "Your Attendance History"
+# table in mod_attendance.R — this calendar is the only day-level view now.
 #
-# Uses plain HTML `title=` attributes for the tooltip (same technique the
-# old heatmap already used) rather than custom JS — simpler, and this
-# ecosystem has no existing custom-tooltip convention to match.
+# Click-to-log (Fred, 2026-09-04): native `title=` hover tooltips proved
+# unreliable in practice (slow/easy to miss) -- every cell is clickable
+# instead. Click emits a namespaced Shiny input event (date + expected +
+# detail_text, pipe-delimited); the server function returns
+# list(clicked = reactive(...)) so the CALLER (mod_attendance.R, which
+# owns the log-attendance form) can open and pre-fill it. This module
+# deliberately does not own the form itself -- keeps the form's REDCap
+# write logic in one place. `title=` is kept alongside as a harmless
+# fallback, not the primary interaction anymore.
 # =============================================================================
 
 #' @importFrom shiny NS moduleServer reactive req renderUI uiOutput tagList div tags
@@ -40,6 +45,11 @@ mod_conference_calendar_ui <- function(id) {
 #' @param crosswalk_r,amion_r Optional reactives (e.g. from
 #'   use_amion_data()) returning pre-fetched crosswalk/Amion data. NULL
 #'   (default): fetches its own data.
+#' @return \code{list(clicked = reactive(...))} — the reactive returns
+#'   \code{NULL} until a day cell is clicked, then
+#'   \code{list(date=, expected=, detail_text=)} for whichever day was
+#'   last clicked. The caller owns what happens next (e.g. opening/
+#'   pre-filling a log-attendance form) — this module only reports clicks.
 #' @name mod_conference_calendar
 #' @export
 mod_conference_calendar_server <- function(id, resident_id, rdm_token, redcap_url,
@@ -66,6 +76,7 @@ mod_conference_calendar_server <- function(id, resident_id, rdm_token, redcap_ur
 
       week_starts <- sort(unique(cal$week_start))
       day_labels  <- c("Mon", "Tue", "Wed", "Thu", "Fri")
+      click_input_id <- session$ns("day_clicked")
 
       week_rows <- lapply(week_starts, function(ws) {
         week_cells <- lapply(day_labels, function(d) {
@@ -76,10 +87,16 @@ mod_conference_calendar_server <- function(id, resident_id, rdm_token, redcap_ur
             bg <- .CONF_CAL_COLORS[[row$status[1]]]
             border <- if (row$status[1] == "pending_today") "1px dashed #999" else "none"
             tip <- paste0(format(row$Date[1], "%a, %b %d"), " — ", row$detail_text[1])
+            # Pipe-delimited payload (date|expected|detail_text) -- parsed
+            # back apart in the `clicked` reactive below. detail_text can't
+            # itself contain "|" (category names/rotation labels never do).
+            payload <- paste(format(row$Date[1], "%Y-%m-%d"), row$expected[1], row$detail_text[1], sep = "|")
+            onclick_js <- sprintf("Shiny.setInputValue('%s', '%s', {priority: 'event'})",
+                                  click_input_id, gsub("'", "", payload))
             cell <- shiny::div(
-              title = tip,
+              title = tip, onclick = onclick_js,
               style = paste0("width:20px;height:20px;border-radius:4px;background:", bg,
-                             ";border:", border, ";cursor:default;")
+                             ";border:", border, ";cursor:pointer;")
             )
           }
           shiny::tags$td(style = "padding:2px;", cell)
@@ -103,9 +120,20 @@ mod_conference_calendar_server <- function(id, resident_id, rdm_token, redcap_ur
         shiny::div(style = "overflow-x:auto;",
           shiny::tags$table(style = "border-collapse:collapse;", shiny::tags$tbody(week_rows))
         ),
-        legend
+        legend,
+        shiny::tags$p(class = "text-muted", style = "font-size:0.78rem;margin-top:6px;",
+                       "Click a day to log or review attendance for it.")
       )
     })
+
+    clicked <- shiny::reactive({
+      shiny::req(input$day_clicked)
+      parts <- strsplit(input$day_clicked, "\\|")[[1]]
+      list(date = as.Date(parts[1]), expected = parts[2],
+           detail_text = if (length(parts) >= 3) parts[3] else "")
+    })
+
+    list(clicked = clicked)
   })
 }
 

@@ -34,6 +34,13 @@ record_id.}
 use_amion_data()) returning pre-fetched crosswalk/Amion data. NULL
 (default): fetches its own data.}
 }
+\value{
+\code{list(clicked = reactive(...))} — the reactive returns
+\code{NULL} until a day cell is clicked, then
+\code{list(date=, expected=, detail_text=)} for whichever day was
+last clicked. The caller owns what happens next (e.g. opening/
+pre-filling a log-attendance form) — this module only reports clicks.
+}
 \description{
 Attendance-calendar module — UI + server.
 }
