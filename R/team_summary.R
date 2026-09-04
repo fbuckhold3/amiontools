@@ -161,8 +161,21 @@ build_team_summary <- function(rdm_token,
 
   o_any_dates <- o_only |> dplyr::distinct(record_id, Date)
 
+  # Bug found via a real resident's numbers looking too high (Fred,
+  # 2026-09-04): Amion pre-builds the WHOLE academic year in advance, but
+  # only fills in detailed team/o-type rows for the near-term portion of
+  # it -- the far-future part of a ward-roster block can have an r-type
+  # row (rotation continues) with genuinely no o-type roster data yet, not
+  # because the resident is off. Confirmed for Tina Sood: 92 candidate
+  # "inferred off" days, 91 of them in the future (as far out as June
+  # 2027), only 1 in the past/today. Undated inferred-off was inflating
+  # every resident's Off total with this "not built yet" noise. Bounding
+  # to Date <= today fixes it -- documented_off is untouched (an explicit
+  # Amion "X off" label on a future date is a real scheduled fact, not a
+  # missing-data artifact).
   inferred_off <- r_ward |>
     dplyr::anti_join(o_any_dates, by = c("record_id", "Date")) |>
+    dplyr::filter(Date <= Sys.Date()) |>
     dplyr::mutate(team = "Off", role = NA_character_, slot = NA_character_, source = "inferred")
 
   detail_off <- dplyr::bind_rows(documented_off, inferred_off)
