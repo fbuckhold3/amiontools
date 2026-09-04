@@ -43,8 +43,14 @@ mod_conference_calendar_ui <- function(id) {
 #' @param redcap_url REDCap API URL.
 #' @param amion_lo Amion Lo= program token; defaults to AMION_LO_DEFAULT.
 #' @param crosswalk_r,amion_r Optional reactives (e.g. from
-#'   use_amion_data()) returning pre-fetched crosswalk/Amion data. NULL
-#'   (default): fetches its own data.
+#'   use_amion_data()) returning pre-fetched crosswalk/Amion data. Ignored
+#'   when `expected_calendar_r` is also supplied. NULL (default): fetches
+#'   its own data.
+#' @param expected_calendar_r Optional reactive (e.g. from
+#'   \code{use_expected_calendar_cached()}) returning the cached, expanded
+#'   expected-conference calendar — when supplied, skips the live Amion
+#'   fetch entirely (questions_log stays live regardless). NULL (default):
+#'   computed live from crosswalk_r/amion_r.
 #' @return \code{list(clicked = reactive(...))} — the reactive returns
 #'   \code{NULL} until a day cell is clicked, then
 #'   \code{list(date=, expected=, detail_text=)} for whichever day was
@@ -55,7 +61,8 @@ mod_conference_calendar_ui <- function(id) {
 mod_conference_calendar_server <- function(id, resident_id, rdm_token, redcap_url,
                                            amion_lo = AMION_LO_DEFAULT,
                                            crosswalk_r = NULL,
-                                           amion_r = NULL) {
+                                           amion_r = NULL,
+                                           expected_calendar_r = NULL) {
   shiny::moduleServer(id, function(input, output, session) {
 
     cal_data <- shiny::reactive({
@@ -64,7 +71,8 @@ mod_conference_calendar_server <- function(id, resident_id, rdm_token, redcap_ur
         record_id = resident_id(), rdm_token = rdm_token, redcap_url = redcap_url,
         amion_lo = amion_lo,
         crosswalk = if (!is.null(crosswalk_r)) crosswalk_r() else NULL,
-        amion     = if (!is.null(amion_r)) amion_r() else NULL
+        amion     = if (!is.null(amion_r)) amion_r() else NULL,
+        expected_calendar = if (!is.null(expected_calendar_r)) expected_calendar_r() else NULL
       )
     })
 

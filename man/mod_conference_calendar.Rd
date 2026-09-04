@@ -15,7 +15,8 @@ mod_conference_calendar_server(
   redcap_url,
   amion_lo = AMION_LO_DEFAULT,
   crosswalk_r = NULL,
-  amion_r = NULL
+  amion_r = NULL,
+  expected_calendar_r = NULL
 )
 }
 \arguments{
@@ -31,8 +32,15 @@ record_id.}
 \item{amion_lo}{Amion Lo= program token; defaults to AMION_LO_DEFAULT.}
 
 \item{crosswalk_r, amion_r}{Optional reactives (e.g. from
-use_amion_data()) returning pre-fetched crosswalk/Amion data. NULL
-(default): fetches its own data.}
+use_amion_data()) returning pre-fetched crosswalk/Amion data. Ignored
+when \code{expected_calendar_r} is also supplied. NULL (default): fetches
+its own data.}
+
+\item{expected_calendar_r}{Optional reactive (e.g. from
+\code{use_expected_calendar_cached()}) returning the cached, expanded
+expected-conference calendar — when supplied, skips the live Amion
+fetch entirely (questions_log stays live regardless). NULL (default):
+computed live from crosswalk_r/amion_r.}
 }
 \value{
 \code{list(clicked = reactive(...))} — the reactive returns

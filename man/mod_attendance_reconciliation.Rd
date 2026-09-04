@@ -15,7 +15,8 @@ mod_attendance_reconciliation_server(
   redcap_url,
   amion_lo = AMION_LO_DEFAULT,
   crosswalk_r = NULL,
-  amion_r = NULL
+  amion_r = NULL,
+  expected_calendar_r = NULL
 )
 }
 \arguments{
@@ -32,8 +33,15 @@ record_id (character/numeric coercible).}
 
 \item{crosswalk_r, amion_r}{Optional reactives (e.g. from
 use_amion_data()) returning pre-fetched crosswalk/Amion data — pass
-these to fetch once instead of independently re-fetching. NULL
-(default): fetches its own data.}
+these to fetch once instead of independently re-fetching. Ignored
+when \code{expected_calendar_r} is also supplied. NULL (default): fetches
+its own data.}
+
+\item{expected_calendar_r}{Optional reactive (e.g. from
+\code{use_expected_calendar_cached()}) returning the cached, expanded
+expected-conference calendar — when supplied, skips the live Amion
+fetch entirely for this section (questions_log stays live regardless).
+NULL (default): computed live from crosswalk_r/amion_r.}
 }
 \description{
 Attendance-reconciliation module — UI + server.

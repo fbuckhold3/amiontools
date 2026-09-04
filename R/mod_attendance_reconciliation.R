@@ -38,21 +38,29 @@ mod_attendance_reconciliation_ui <- function(id) {
 #' @param amion_lo Amion Lo= program token; defaults to AMION_LO_DEFAULT.
 #' @param crosswalk_r,amion_r Optional reactives (e.g. from
 #'   use_amion_data()) returning pre-fetched crosswalk/Amion data — pass
-#'   these to fetch once instead of independently re-fetching. NULL
-#'   (default): fetches its own data.
+#'   these to fetch once instead of independently re-fetching. Ignored
+#'   when `expected_calendar_r` is also supplied. NULL (default): fetches
+#'   its own data.
+#' @param expected_calendar_r Optional reactive (e.g. from
+#'   \code{use_expected_calendar_cached()}) returning the cached, expanded
+#'   expected-conference calendar — when supplied, skips the live Amion
+#'   fetch entirely for this section (questions_log stays live regardless).
+#'   NULL (default): computed live from crosswalk_r/amion_r.
 #' @name mod_attendance_reconciliation
 #' @export
 mod_attendance_reconciliation_server <- function(id, resident_id, rdm_token, redcap_url,
                                                   amion_lo = AMION_LO_DEFAULT,
                                                   crosswalk_r = NULL,
-                                                  amion_r = NULL) {
+                                                  amion_r = NULL,
+                                                  expected_calendar_r = NULL) {
   shiny::moduleServer(id, function(input, output, session) {
 
     recon_data <- shiny::reactive({
       build_attendance_reconciliation(
         rdm_token = rdm_token, redcap_url = redcap_url, amion_lo = amion_lo,
         crosswalk = if (!is.null(crosswalk_r)) crosswalk_r() else NULL,
-        amion     = if (!is.null(amion_r)) amion_r() else NULL
+        amion     = if (!is.null(amion_r)) amion_r() else NULL,
+        expected_calendar = if (!is.null(expected_calendar_r)) expected_calendar_r() else NULL
       )
     })
 

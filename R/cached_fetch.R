@@ -80,3 +80,32 @@ use_amion_data_cached <- function(rdm_token, redcap_url,
     ))
   )
 }
+
+#' Try loading the RLE-encoded expected-conference calendar from the
+#' REDCap app_cache record, expanded back to one row per (resident, date).
+#'
+#' Separate from \code{use_amion_data_cached()} since not every caller
+#' needs both — \code{mod_attendance_reconciliation}/
+#' \code{mod_conference_calendar} only need this one, not the rotation/
+#' team/time-allocation reactives.
+#'
+#' @inheritParams use_amion_data_cached
+#' @return A reactive returning the expanded calendar (record_id, Date,
+#'   category, expected) on a cache hit, or \code{NULL} (the reactive
+#'   itself, not its value) on a cache miss — callers should fall back to
+#'   a live fetch in that case, same pattern as \code{use_amion_data_cached()}.
+#' @export
+use_expected_calendar_cached <- function(rdm_token, redcap_url,
+                                         cache_record_id = Sys.getenv("CACHE_RECORD_ID"),
+                                         max_age_hours = 192) {
+
+  rle <- gmed::load_cached_expected_calendar(
+    rdm_token = rdm_token, redcap_url = redcap_url,
+    cache_record_id = cache_record_id, max_age_hours = max_age_hours
+  )
+
+  if (is.null(rle)) return(NULL)
+
+  expanded <- expand_expected_calendar_rle(rle)
+  shiny::reactive(expanded)
+}
