@@ -13,12 +13,14 @@
 #' @importFrom shinycssloaders withSpinner
 #' @importFrom plotly plot_ly add_trace layout renderPlotly plotlyOutput config
 #' @importFrom DT renderDT DTOutput datatable formatRound
-#' @importFrom dplyr filter arrange select
+#' @importFrom dplyr filter arrange select mutate
 NULL
 
-.DUTY_HOURS_COLOR       <- "#2a78d6"
-.DUTY_HOURS_AVG_COLOR   <- "#eb6834"
-.DUTY_HOURS_LIMIT_COLOR <- "#c0392b"
+.DUTY_HOURS_COLOR        <- "#2a78d6"
+.DUTY_HOURS_FUTURE_COLOR <- "#a9c7e8"
+.DUTY_HOURS_AVG_COLOR    <- "#eb6834"
+.DUTY_HOURS_LIMIT_COLOR  <- "#c0392b"
+.DUTY_HOURS_TODAY_COLOR  <- "#6b7d82"
 
 #' @rdname mod_duty_hour_summary
 #' @export
@@ -87,7 +89,10 @@ mod_duty_hour_summary_server <- function(id, resident_id, rdm_token, redcap_url,
       shiny::tagList(
         shiny::h5(paste0("Duty Hours — ", resident_weekly()$Level[1], " class")),
         shiny::p(class = "text-muted small",
-                 "Estimated hours from your Amion schedule (current academic year). Does not yet include moonlighting or at-home chart-review time — coming soon.")
+                 "Estimated hours from your Amion schedule (current academic year). Does not yet include moonlighting or at-home chart-review time — coming soon."),
+        shiny::p(class = "text-muted small",
+                 shiny::tags$strong("Weeks after today (lighter bars) are your upcoming scheduled hours"),
+                 " — hours you're expected to work based on your posted schedule, not hours you've actually worked yet.")
       )
     })
 
@@ -96,32 +101,66 @@ mod_duty_hour_summary_server <- function(id, resident_id, rdm_token, redcap_url,
         shiny::need(nrow(resident_weekly()) > 0,
                     "No Amion schedule data available for this resident.")
       )
-      wk <- resident_weekly()
+      # Amion pre-builds the whole academic year, so `wk` routinely extends
+      # months past today — split into two bar traces (past/current vs
+      # future) so it reads as "hours worked" vs "hours scheduled," not one
+      # undifferentiated bar series. Split on week_END (week_start + 6d) <
+      # today, so a week that's only partly elapsed still counts as past/
+      # current rather than future.
+      wk <- resident_weekly() |>
+        dplyr::mutate(period = ifelse(week_start + 6 < Sys.Date(), "past", "future"))
+      wk_past   <- wk |> dplyr::filter(period == "past")
+      wk_future <- wk |> dplyr::filter(period == "future")
 
-      plotly::plot_ly(
-        data = wk, x = ~week_start, y = ~Total_Hours, type = "bar", name = "Weekly Hours",
-        marker = list(color = .DUTY_HOURS_COLOR),
-        hovertemplate = "Week of %{x}<br>%{y:.1f} hours<extra></extra>"
-      ) |>
+      p <- plotly::plot_ly()
+      if (nrow(wk_past) > 0) {
+        p <- p |> plotly::add_trace(
+          data = wk_past, x = ~week_start, y = ~Total_Hours, type = "bar", name = "Hours worked",
+          marker = list(color = .DUTY_HOURS_COLOR),
+          hovertemplate = "Week of %{x}<br>%{y:.1f} hours worked<extra></extra>"
+        )
+      }
+      if (nrow(wk_future) > 0) {
+        p <- p |> plotly::add_trace(
+          data = wk_future, x = ~week_start, y = ~Total_Hours, type = "bar", name = "Hours scheduled (upcoming)",
+          marker = list(color = .DUTY_HOURS_FUTURE_COLOR),
+          hovertemplate = "Week of %{x}<br>%{y:.1f} hours scheduled<extra></extra>"
+        )
+      }
+
+      today_shape <- if (nrow(wk_future) > 0 || nrow(wk_past) > 0) {
+        list(type = "line", x0 = Sys.Date(), x1 = Sys.Date(), xref = "x",
+             y0 = 0, y1 = 1, yref = "paper",
+             line = list(color = .DUTY_HOURS_TODAY_COLOR, dash = "dot", width = 1.5))
+      }
+      today_annotation <- if (nrow(wk_future) > 0 || nrow(wk_past) > 0) {
+        list(x = Sys.Date(), xref = "x", y = 1, yref = "paper", yanchor = "bottom",
+             text = "Today", showarrow = FALSE, font = list(color = .DUTY_HOURS_TODAY_COLOR, size = 11))
+      }
+
+      p |>
         plotly::add_trace(
-          x = ~week_start, y = ~rolling_4wk_avg_hours, type = "scatter", mode = "lines+markers",
+          data = wk, x = ~week_start, y = ~rolling_4wk_avg_hours, type = "scatter", mode = "lines+markers",
           name = "4-week rolling avg", line = list(color = .DUTY_HOURS_AVG_COLOR, width = 2),
           hovertemplate = "Week of %{x}<br>4wk avg: %{y:.1f} hours<extra></extra>"
         ) |>
         plotly::layout(
           xaxis = list(title = "", gridcolor = "#e9eff0"),
           yaxis = list(title = "Hours", zeroline = FALSE, gridcolor = "#e9eff0"),
-          shapes = list(list(
-            type = "line", x0 = 0, x1 = 1, xref = "paper",
-            y0 = 80, y1 = 80, yref = "y",
-            line = list(color = .DUTY_HOURS_LIMIT_COLOR, dash = "dash", width = 1.5)
-          )),
-          annotations = list(list(
-            x = 1, xref = "paper", y = 80, yref = "y", xanchor = "right", yanchor = "bottom",
-            text = "80h reference", showarrow = FALSE,
-            font = list(color = .DUTY_HOURS_LIMIT_COLOR, size = 11)
-          )),
-          legend = list(orientation = "h", x = 0, y = 1.1),
+          shapes = list(
+            list(type = "line", x0 = 0, x1 = 1, xref = "paper",
+                 y0 = 80, y1 = 80, yref = "y",
+                 line = list(color = .DUTY_HOURS_LIMIT_COLOR, dash = "dash", width = 1.5)),
+            today_shape
+          ),
+          annotations = list(
+            list(x = 1, xref = "paper", y = 80, yref = "y", xanchor = "right", yanchor = "bottom",
+                 text = "80h reference", showarrow = FALSE,
+                 font = list(color = .DUTY_HOURS_LIMIT_COLOR, size = 11)),
+            today_annotation
+          ),
+          barmode = "overlay",
+          legend = list(orientation = "h", x = 0, y = 1.15),
           plot_bgcolor = "rgba(0,0,0,0)", paper_bgcolor = "rgba(0,0,0,0)",
           font = list(family = "inherit")
         ) |>
@@ -170,12 +209,13 @@ mod_duty_hour_summary_server <- function(id, resident_id, rdm_token, redcap_url,
     output$weekly_table <- DT::renderDT({
       shiny::req(nrow(resident_weekly()) > 0)
       tbl <- resident_weekly() |>
-        dplyr::select(week_start, Total_Hours, Days_Worked, rolling_4wk_avg_hours,
+        dplyr::mutate(Period = ifelse(week_start + 6 < Sys.Date(), "Worked", "Scheduled")) |>
+        dplyr::select(week_start, Period, Total_Hours, Days_Worked, rolling_4wk_avg_hours,
                       flag_80h, rolling_days_per_week, flag_low_days) |>
         dplyr::arrange(dplyr::desc(week_start))
       DT::datatable(
         tbl, rownames = FALSE,
-        colnames = c("Week of", "Hours", "Days Worked", "4wk Avg Hours",
+        colnames = c("Week of", "Period", "Hours", "Days Worked", "4wk Avg Hours",
                     "80h Flag", "Days/wk Avg", "Low-Days Flag"),
         options = list(pageLength = 10, order = list(list(0, "desc")))
       ) |>
