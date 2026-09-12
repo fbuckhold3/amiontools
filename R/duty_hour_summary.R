@@ -288,6 +288,12 @@ build_duty_hour_blocks <- function(rdm_token,
 #'   data is reviewed.
 #' @param days_per_week_target Reference line for the days-worked-per-week
 #'   metric (default 5.5, per Fred).
+#' @param entries Optional pre-fetched \code{pull_duty_hour_log()} result —
+#'   pass this to overlay resident-confirmed/entered hours over the Amion
+#'   defaults (see duty_hour_entries.R). NULL (default) fetches internally
+#'   via \code{rdm_token}/\code{redcap_url} — pass \code{entries =
+#'   data.frame()} explicitly to skip the overlay entirely (Amion-only,
+#'   the original Phase 1 behavior).
 #' @return A list:
 #'   - duty_blocks, educational_detail: from build_duty_hour_blocks(), with
 #'     duty_blocks' "default"/"call" rows on a real day off (see
@@ -311,7 +317,8 @@ build_duty_hour_summary <- function(rdm_token,
                                     amion = NULL,
                                     hard_gap_hours = 2,
                                     soft_gap_hours = 10,
-                                    days_per_week_target = 5.5) {
+                                    days_per_week_target = 5.5,
+                                    entries = NULL) {
 
   if (is.null(crosswalk)) {
     crosswalk <- get_amion_crosswalk(rdm_token, redcap_url, verified_only = verified_only)
@@ -351,10 +358,23 @@ build_duty_hour_summary <- function(rdm_token,
   duty_blocks$source[override]         <- "day_off"
   duty_blocks$is_day_off <- NULL
 
+  # Resident-confirmed/entered rows (Phase 2, duty_hour_log) override
+  # everything above for their date — a saved resident record is
+  # authoritative over both the Amion default AND the inferred day-off
+  # override. entries=data.frame() (explicit empty) skips this entirely.
+  if (is.null(entries)) {
+    entries <- pull_duty_hour_log(rdm_token = rdm_token, redcap_url = redcap_url)
+  }
+  duty_blocks <- overlay_duty_hour_entries(duty_blocks, entries)
+
   daily <- duty_blocks |>
     dplyr::filter(!is.na(Hours)) |>
     dplyr::group_by(record_id, name, Level, Date) |>
-    dplyr::summarise(Total_Hours = sum(Hours), .groups = "drop") |>
+    dplyr::summarise(
+      Total_Hours = sum(Hours[counts_toward_duty]),
+      Home_Hours  = sum(Hours[!counts_toward_duty]),
+      .groups = "drop"
+    ) |>
     dplyr::arrange(record_id, Date)
 
   is_vacation_date <- duty_blocks |>
@@ -371,6 +391,7 @@ build_duty_hour_summary <- function(rdm_token,
     dplyr::group_by(record_id, name, Level, week_start) |>
     dplyr::summarise(
       Total_Hours = sum(Total_Hours),
+      Home_Hours  = sum(Home_Hours),
       Days_Worked = sum(Total_Hours > 0 & !is_vacation),
       all_vacation = all(is_vacation),
       .groups = "drop"

@@ -28,7 +28,8 @@ build_duty_hour_summary(
   amion = NULL,
   hard_gap_hours = 2,
   soft_gap_hours = 10,
-  days_per_week_target = 5.5
+  days_per_week_target = 5.5,
+  entries = NULL
 )
 }
 \arguments{
@@ -65,6 +66,13 @@ data is reviewed.}
 
 \item{days_per_week_target}{Reference line for the days-worked-per-week
 metric (default 5.5, per Fred).}
+
+\item{entries}{Optional pre-fetched \code{pull_duty_hour_log()} result —
+pass this to overlay resident-confirmed/entered hours over the Amion
+defaults (see duty_hour_entries.R). NULL (default) fetches internally
+via \code{rdm_token}/\code{redcap_url} — pass \code{entries =
+data.frame()} explicitly to skip the overlay entirely (Amion-only,
+the original Phase 1 behavior).}
 }
 \value{
 A list:
