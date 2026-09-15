@@ -61,6 +61,20 @@ DUTY_HOUR_SOURCE_CODES <- c(
   "Amion default" = "1", "Resident confirmed" = "2", "Resident entered" = "3"
 )
 
+#' REDCap's "time" validation type round-trips as "HH:MM:SS" (confirmed
+#' live 2026-09-15, not just "HH:MM" as written) — normalize to the same
+#' 4-digit HHMM format used everywhere else in this package (block_start/
+#' block_end, DUTY_HOUR_DEFAULT_MAP), so downstream to_int_time()/
+#' .dt_from_hhmm() calls work the same regardless of source. Passes
+#' already-plain HHMM strings (no colon) through unchanged.
+#' @keywords internal
+.time_to_hhmm <- function(x) {
+  x <- as.character(x)
+  out <- ifelse(is.na(x) | x == "", NA_character_,
+                gsub("^(\\d{1,2}):(\\d{2}).*$", "\\1\\2", x))
+  ifelse(is.na(out), NA_character_, formatC(as.integer(out), width = 4, flag = "0"))
+}
+
 .DUTY_HOUR_LOG_FIELDS <- c(
   "record_id", "redcap_repeat_instance", "dh_date", "dh_category",
   "dh_start_time", "dh_end_time", "dh_hours", "dh_moonlighting_hours",
@@ -111,6 +125,8 @@ pull_duty_hour_log <- function(rdm_token, redcap_url, record_id = NULL) {
       record_id              = as.character(record_id),
       redcap_repeat_instance = as.integer(redcap_repeat_instance),
       dh_date                = as.Date(dh_date),
+      dh_start_time          = .time_to_hhmm(dh_start_time),
+      dh_end_time            = .time_to_hhmm(dh_end_time),
       dh_hours               = suppressWarnings(as.numeric(dh_hours)),
       dh_moonlighting_hours  = suppressWarnings(as.numeric(dh_moonlighting_hours)),
       dh_home_hours          = suppressWarnings(as.numeric(dh_home_hours))
