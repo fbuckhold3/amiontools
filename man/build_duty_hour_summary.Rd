@@ -84,12 +84,17 @@ build_team_summary()$detail_off) overridden to Hours=0/source="day_off"
 \item weekly: + week_start/Total_Hours/Days_Worked/rolling_4wk_avg_hours/
 flag_80h/rolling_days_per_week/flag_low_days
 \item weekly_by_category: record_id/name/Level/week_start/super_category/
-verified/Hours — the same weekly totals broken out by the 8
-SUPER_CATEGORY_MAP buckets and by verified status (TRUE only for a
-resident's own saved/confirmed row; an Amion default is never
-"verified" regardless of date). A day off/vacation/jeopardy colors
-as "Time Off" here regardless of the underlying rotation it
-interrupts. Long format — pivot for a stacked chart.
+verified/needs_entry/Hours/Days — the same weekly totals broken out
+by the 8 SUPER_CATEGORY_MAP buckets and by verified status (TRUE
+only for a resident's own saved/confirmed row; an Amion default is
+never "verified" regardless of date). A day off/vacation/jeopardy
+colors as "Time Off" here regardless of the underlying rotation it
+interrupts. \code{Hours} is a DISPLAY value, not a compliance one — Time
+Off and needs_entry rows get a nominal 8h/day so they're visible on
+a stacked chart instead of 0-height/absent; \code{Days} carries the real
+day count for hover text. Total_Hours/flag_80h (in \code{weekly}) are
+unaffected — computed earlier, from real Hours only. Long format —
+pivot for a stacked chart.
 \item rest_gap_flags: one row per flagged transition
 \item unmapped: duty_blocks rows with Hours NA that are NOT the expected
 resident_entry_needed case (i.e. source == "unmapped_category") —

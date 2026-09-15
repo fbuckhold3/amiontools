@@ -306,12 +306,17 @@ build_duty_hour_blocks <- function(rdm_token,
 #'   - weekly: + week_start/Total_Hours/Days_Worked/rolling_4wk_avg_hours/
 #'     flag_80h/rolling_days_per_week/flag_low_days
 #'   - weekly_by_category: record_id/name/Level/week_start/super_category/
-#'     verified/Hours — the same weekly totals broken out by the 8
-#'     SUPER_CATEGORY_MAP buckets and by verified status (TRUE only for a
-#'     resident's own saved/confirmed row; an Amion default is never
-#'     "verified" regardless of date). A day off/vacation/jeopardy colors
-#'     as "Time Off" here regardless of the underlying rotation it
-#'     interrupts. Long format — pivot for a stacked chart.
+#'     verified/needs_entry/Hours/Days — the same weekly totals broken out
+#'     by the 8 SUPER_CATEGORY_MAP buckets and by verified status (TRUE
+#'     only for a resident's own saved/confirmed row; an Amion default is
+#'     never "verified" regardless of date). A day off/vacation/jeopardy
+#'     colors as "Time Off" here regardless of the underlying rotation it
+#'     interrupts. `Hours` is a DISPLAY value, not a compliance one — Time
+#'     Off and needs_entry rows get a nominal 8h/day so they're visible on
+#'     a stacked chart instead of 0-height/absent; `Days` carries the real
+#'     day count for hover text. Total_Hours/flag_80h (in `weekly`) are
+#'     unaffected — computed earlier, from real Hours only. Long format —
+#'     pivot for a stacked chart.
 #'   - rest_gap_flags: one row per flagged transition
 #'   - unmapped: duty_blocks rows with Hours NA that are NOT the expected
 #'     resident_entry_needed case (i.e. source == "unmapped_category") —
@@ -445,6 +450,18 @@ build_duty_hour_summary <- function(rdm_token,
   # otherwise still read as e.g. "SLUH Inpatient"). verified = TRUE only
   # for a resident's own saved row (confirmed or entered) — an Amion
   # default, however recent, is not "verified."
+  #
+  # Two categories have ZERO real Hours by construction — Time Off (0h,
+  # correctly excluded from compliance totals) and "needs entry" (Elective/
+  # Emergency/Other-Admin with no Amion default, Hours = NA until the
+  # resident logs it) — so a plain hours-height stacked bar renders them
+  # as invisible. Fred (2026-09-15): both need to actually show up. Fixed
+  # with a DISPLAY-ONLY nominal height (8h/day) for these two cases, kept
+  # in a SEPARATE `display_hours` column so it never touches Total_Hours/
+  # flag_80h (those still read Hours from `daily`/`weekly`, computed
+  # earlier and untouched by this block) — `Days` (the real day count)
+  # rides along so the chart can show "N day(s)" in hover rather than a
+  # misleading "8.0 hours".
   cat_for_color <- ifelse(duty_blocks$source %in% c("vacation", "day_off", "jeopardy"),
                           "Time Off/Holiday", duty_blocks$category)
   super_cat <- classify_super_category(cat_for_color)
@@ -453,12 +470,17 @@ build_duty_hour_summary <- function(rdm_token,
   weekly_by_category <- duty_blocks |>
     dplyr::mutate(
       super_category = super_cat,
-      verified = source %in% c("resident_confirmed", "resident_entered"),
+      verified      = source %in% c("resident_confirmed", "resident_entered"),
+      needs_entry   = is.na(Hours) & !verified,
+      display_hours = dplyr::case_when(
+        super_category == "Time Off" ~ 8,
+        is.na(Hours)                 ~ 8,
+        TRUE                         ~ Hours
+      ),
       week_start = as.Date(lubridate::floor_date(Date, "week", week_start = 7))
     ) |>
-    dplyr::filter(!is.na(Hours)) |>
-    dplyr::group_by(record_id, name, Level, week_start, super_category, verified) |>
-    dplyr::summarise(Hours = sum(Hours), .groups = "drop")
+    dplyr::group_by(record_id, name, Level, week_start, super_category, verified, needs_entry) |>
+    dplyr::summarise(Hours = sum(display_hours), Days = dplyr::n_distinct(Date), .groups = "drop")
 
   list(
     duty_blocks         = duty_blocks,

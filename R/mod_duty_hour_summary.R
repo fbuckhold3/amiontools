@@ -137,18 +137,26 @@ mod_duty_hour_summary_server <- function(id, resident_id, rdm_token, redcap_url,
     # Full week x category x verified grid, 0-filled — guarantees the
     # stacked chart's x-axis spans the whole AY even where no data exists
     # yet for a given (week, category) combination.
+    # 3 states per category: verified (resident-confirmed/entered), needs_entry
+    # (no Amion default AND not yet entered — Elective/Emergency/Other-Admin
+    # "TBD" slots), anticipated (an Amion default exists, just not saved yet)
+    # — everything else. Grid-joined against the full AY week range so every
+    # week/category/state combination exists (0-filled), guaranteeing the
+    # x-axis spans the whole year even where nothing has happened yet.
     resident_by_cat <- shiny::reactive({
       shiny::req(resident_id())
       raw <- duty_data()$weekly_by_category |> dplyr::filter(record_id == resident_id())
       grid <- expand.grid(
         week_start = .ay_week_starts(),
         super_category = names(DUTY_HOUR_CATEGORY_COLORS),
-        verified = c(TRUE, FALSE),
+        state = c("verified", "needs_entry", "anticipated"),
         stringsAsFactors = FALSE
       )
+      grid$verified    <- grid$state == "verified"
+      grid$needs_entry <- grid$state == "needs_entry"
       grid |>
-        dplyr::left_join(raw, by = c("week_start", "super_category", "verified")) |>
-        dplyr::mutate(Hours = ifelse(is.na(Hours), 0, Hours))
+        dplyr::left_join(raw, by = c("week_start", "super_category", "verified", "needs_entry")) |>
+        dplyr::mutate(Hours = ifelse(is.na(Hours), 0, Hours), Days = ifelse(is.na(Days), 0L, Days))
     })
 
     resident_gaps <- shiny::reactive({
@@ -165,9 +173,26 @@ mod_duty_hour_summary_server <- function(id, resident_id, rdm_token, redcap_url,
                  shiny::tags$strong("Solid = verified"),
                  " (you've confirmed or entered that day). ",
                  shiny::tags$strong("Lighter = anticipated"),
-                 " — still just your Amion schedule, not yet confirmed, whether that day is past or future.")
+                 " — still just your Amion schedule, not yet confirmed, whether that day is past or future. ",
+                 shiny::tags$strong("Red-outlined = needs entry"),
+                 " — no default exists (e.g. a TBD Elective slot); Time Off and needs-entry bars show as a nominal day-count, not real hours — hover for the actual day count."
+        )
       )
     })
+
+    # Row-wise hover text for one category's bar segments. Time Off and
+    # needs_entry rows show a day count (their `Hours` is a nominal
+    # display value, not real duty hours — see weekly_by_category's
+    # docs); everything else shows real hours.
+    .dh_hover_text <- function(rows, cc, state_label) {
+      is_nominal <- cc == "Time Off" | state_label == "needs_entry"
+      suffix <- if (state_label == "needs_entry") " — hours not yet entered" else ""
+      ifelse(
+        is_nominal,
+        sprintf("%s (%s)<br>Week of %s<br>%d day(s)%s", cc, state_label, format(rows$week_start, "%b %d"), rows$Days, suffix),
+        sprintf("%s (%s)<br>Week of %s<br>%.1f hours", cc, state_label, format(rows$week_start, "%b %d"), rows$Hours)
+      )
+    }
 
     output$chart <- plotly::renderPlotly({
       shiny::validate(
@@ -181,22 +206,36 @@ mod_duty_hour_summary_server <- function(id, resident_id, rdm_token, redcap_url,
       p <- plotly::plot_ly()
       for (cc in cats) {
         base_color <- unname(DUTY_HOUR_CATEGORY_COLORS[[cc]])
-        verified_rows   <- cat[cat$super_category == cc & cat$verified, ]
-        anticipated_rows <- cat[cat$super_category == cc & !cat$verified, ]
-        verified_rows   <- verified_rows[order(verified_rows$week_start), ]
+
+        verified_rows    <- cat[cat$super_category == cc & cat$state == "verified", ]
+        anticipated_rows <- cat[cat$super_category == cc & cat$state == "anticipated", ]
+        needs_entry_rows <- cat[cat$super_category == cc & cat$state == "needs_entry", ]
+        verified_rows    <- verified_rows[order(verified_rows$week_start), ]
         anticipated_rows <- anticipated_rows[order(anticipated_rows$week_start), ]
+        needs_entry_rows <- needs_entry_rows[order(needs_entry_rows$week_start), ]
 
         p <- p |> plotly::add_trace(
           data = verified_rows, x = ~week_start, y = ~Hours, type = "bar",
           name = cc, legendgroup = cc, showlegend = TRUE,
           marker = list(color = .hex_to_rgba(base_color, .DUTY_HOURS_VERIFIED_ALPHA)),
-          hovertemplate = paste0(cc, " (verified)<br>Week of %{x}<br>%{y:.1f} hours<extra></extra>")
+          text = .dh_hover_text(verified_rows, cc, "verified"), hovertemplate = "%{text}<extra></extra>"
         )
         p <- p |> plotly::add_trace(
           data = anticipated_rows, x = ~week_start, y = ~Hours, type = "bar",
           name = cc, legendgroup = cc, showlegend = FALSE,
           marker = list(color = .hex_to_rgba(base_color, .DUTY_HOURS_ANTICIPATED_ALPHA)),
-          hovertemplate = paste0(cc, " (anticipated)<br>Week of %{x}<br>%{y:.1f} hours<extra></extra>")
+          text = .dh_hover_text(anticipated_rows, cc, "anticipated"), hovertemplate = "%{text}<extra></extra>"
+        )
+        # needs_entry: same low opacity as anticipated, but with a solid
+        # red outline (plotly bar borders can't be dashed — the calendar's
+        # dashed treatment isn't reproducible here, this is the closest
+        # equivalent "needs attention" cue).
+        p <- p |> plotly::add_trace(
+          data = needs_entry_rows, x = ~week_start, y = ~Hours, type = "bar",
+          name = cc, legendgroup = cc, showlegend = FALSE,
+          marker = list(color = .hex_to_rgba(base_color, .DUTY_HOURS_ANTICIPATED_ALPHA),
+                        line = list(color = .DUTY_HOURS_LIMIT_COLOR, width = 1.5)),
+          text = .dh_hover_text(needs_entry_rows, cc, "needs_entry"), hovertemplate = "%{text}<extra></extra>"
         )
       }
 
