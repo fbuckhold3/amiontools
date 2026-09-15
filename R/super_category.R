@@ -37,7 +37,36 @@ SUPER_CATEGORY_MAP <- c(
   "Time Off/Holiday"    = "Time Off",
 
   "Jeopardy"            = "Other",
-  "Other/Admin"         = "Other"
+  "Other/Admin"         = "Other",
+
+  # Duty-hour-log-only categories (not part of the original rotation/session
+  # vocabulary) — folded into "Other" per Fred, who named Continuity Clinic/
+  # Inpatient/Other as the buckets he actually wants distinguished (2026-09-15).
+  "Moonlighting"           = "Other",
+  "At-Home Chart Review"   = "Other"
+)
+
+#' Fixed-order categorical palette for the 8 super-categories, from the
+#' dataviz skill's validated default (8 slots, CVD-safe on the ADJACENT
+#' pairlist — the right gate for a stacked bar chart / adjacent calendar
+#' cells; validated 2026-09-15, `node scripts/validate_palette.js`). Slot
+#' ORDER is the CVD-safety mechanism (never cycle/reorder); the
+#' entity-to-slot ASSIGNMENT below is ours — Inpatient/Continuity Clinic/
+#' Ambulatory deliberately hold slots 1-3 (the subset that also clears the
+#' stronger all-pairs gate) since Fred specifically wants Continuity
+#' Clinic vs. Inpatient vs. everything-else to read clearly at a glance.
+#' Light-mode hex only — this app has no dark-mode chart surface today
+#' (matches every other hardcoded chart color already in this package).
+#' @export
+DUTY_HOUR_CATEGORY_COLORS <- c(
+  "Inpatient"         = "#2a78d6",  # slot 1 blue
+  "Continuity Clinic" = "#eb6834",  # slot 2 orange
+  "Ambulatory"        = "#1baf7a",  # slot 3 aqua
+  "Educational"       = "#eda100",  # slot 4 yellow
+  "Elective"          = "#e87ba4",  # slot 5 magenta
+  "Emergency"         = "#008300",  # slot 6 green
+  "Time Off"          = "#4a3aa7",  # slot 7 violet
+  "Other"             = "#e34948"   # slot 8 red
 )
 
 #' Roll up a vector of categories (from classify_rotation() or

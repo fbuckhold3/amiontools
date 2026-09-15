@@ -305,6 +305,13 @@ build_duty_hour_blocks <- function(rdm_token,
 #'   - daily: record_id/name/Level/Date/Total_Hours/is_vacation
 #'   - weekly: + week_start/Total_Hours/Days_Worked/rolling_4wk_avg_hours/
 #'     flag_80h/rolling_days_per_week/flag_low_days
+#'   - weekly_by_category: record_id/name/Level/week_start/super_category/
+#'     verified/Hours — the same weekly totals broken out by the 8
+#'     SUPER_CATEGORY_MAP buckets and by verified status (TRUE only for a
+#'     resident's own saved/confirmed row; an Amion default is never
+#'     "verified" regardless of date). A day off/vacation/jeopardy colors
+#'     as "Time Off" here regardless of the underlying rotation it
+#'     interrupts. Long format — pivot for a stacked chart.
 #'   - rest_gap_flags: one row per flagged transition
 #'   - unmapped: duty_blocks rows with Hours NA that are NOT the expected
 #'     resident_entry_needed case (i.e. source == "unmapped_category") —
@@ -431,11 +438,34 @@ build_duty_hour_summary <- function(rdm_token,
 
   unmapped <- duty_blocks |> dplyr::filter(source == "unmapped_category")
 
+  # Weekly hours by super-category + verified status (Fred 2026-09-15): a
+  # day off/vacation/jeopardy colors as "Time Off" regardless of the
+  # underlying rotation it interrupts (the override already zeroed its
+  # Hours; category itself is untouched by that override, so it would
+  # otherwise still read as e.g. "SLUH Inpatient"). verified = TRUE only
+  # for a resident's own saved row (confirmed or entered) — an Amion
+  # default, however recent, is not "verified."
+  cat_for_color <- ifelse(duty_blocks$source %in% c("vacation", "day_off", "jeopardy"),
+                          "Time Off/Holiday", duty_blocks$category)
+  super_cat <- classify_super_category(cat_for_color)
+  super_cat[super_cat == "UNMAPPED"] <- "Other"
+
+  weekly_by_category <- duty_blocks |>
+    dplyr::mutate(
+      super_category = super_cat,
+      verified = source %in% c("resident_confirmed", "resident_entered"),
+      week_start = as.Date(lubridate::floor_date(Date, "week", week_start = 7))
+    ) |>
+    dplyr::filter(!is.na(Hours)) |>
+    dplyr::group_by(record_id, name, Level, week_start, super_category, verified) |>
+    dplyr::summarise(Hours = sum(Hours), .groups = "drop")
+
   list(
     duty_blocks         = duty_blocks,
     educational_detail  = built$educational_detail,
     daily               = daily,
     weekly              = weekly,
+    weekly_by_category  = weekly_by_category,
     rest_gap_flags      = rest_gap_flags,
     unmapped            = unmapped
   )

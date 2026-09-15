@@ -4,7 +4,7 @@
 \alias{mod_duty_hour_summary_ui}
 \alias{mod_duty_hour_summary}
 \alias{mod_duty_hour_summary_server}
-\title{Duty-hour summary module — UI + server. Phase 1: read-only.}
+\title{Duty-hour summary module — UI + server. Read-only display.}
 \usage{
 mod_duty_hour_summary_ui(id)
 
@@ -49,5 +49,5 @@ resident_id() anyway, so the narrower input is equivalent. NULL
 before this param existed.}
 }
 \description{
-Duty-hour summary module — UI + server. Phase 1: read-only.
+Duty-hour summary module — UI + server. Read-only display.
 }

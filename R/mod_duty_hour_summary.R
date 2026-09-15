@@ -3,23 +3,55 @@
 # editing happens in imslu.ind.dash's mod_duty_hour_confirm, which writes
 # to RDM's duty_hour_log; this module just reflects whatever
 # build_duty_hour_summary() computes, Amion defaults merged with any saved
-# resident entries). Weekly hours chart with a 4-week rolling-average line
-# and an 80h reference line, plus the rest-gap and low-days flags surfaced
-# as plain text. Nothing here is enforcement — it's a summary view.
+# resident entries). Stacked weekly-hours chart by rotation super-category
+# (DUTY_HOUR_CATEGORY_COLORS), each category split into a solid "verified"
+# segment and a lighter "anticipated" segment — verified = the resident has
+# actually confirmed/entered that day, anticipated = still just an Amion
+# default, REGARDLESS of whether the date is past or future (Fred
+# 2026-09-15: this doubles as the verified/not-verified indicator he asked
+# for, not a separate encoding). Plus a 4-week rolling-average line, an
+# 80h reference line, and the rest-gap/low-days flags as plain text.
+# Nothing here is enforcement — it's a summary view.
+#
+# Both the chart and the weekly table are padded to the full academic year
+# (Jul 1 - Jun 30, per Fred) rather than stopping wherever Amion's actual
+# schedule build-out currently ends (interns in particular have a second
+# half of the year that isn't built out yet — see amion_integration
+# project notes) — padded weeks just show as empty/zero, not missing.
 # =============================================================================
 
 #' @importFrom shiny NS moduleServer reactive req validate need renderUI uiOutput tagList h5 p div tags
 #' @importFrom shinycssloaders withSpinner
 #' @importFrom plotly plot_ly add_trace layout renderPlotly plotlyOutput config
 #' @importFrom DT renderDT DTOutput datatable formatRound
-#' @importFrom dplyr filter arrange select mutate
+#' @importFrom dplyr filter arrange select mutate left_join
 NULL
 
-.DUTY_HOURS_COLOR        <- "#2a78d6"
-.DUTY_HOURS_FUTURE_COLOR <- "#a9c7e8"
 .DUTY_HOURS_AVG_COLOR    <- "#eb6834"
 .DUTY_HOURS_LIMIT_COLOR  <- "#c0392b"
 .DUTY_HOURS_TODAY_COLOR  <- "#6b7d82"
+.DUTY_HOURS_VERIFIED_ALPHA   <- 1
+.DUTY_HOURS_ANTICIPATED_ALPHA <- 0.35
+
+#' @keywords internal
+.hex_to_rgba <- function(hex, alpha) {
+  rgb <- grDevices::col2rgb(hex)
+  sprintf("rgba(%d,%d,%d,%.2f)", rgb[1, ], rgb[2, ], rgb[3, ], alpha)
+}
+
+#' Weekly (Sunday-start) dates spanning the full academic year (Jul 1 -
+#' Jun 30) containing `ref_date` — the display range for the chart/table,
+#' independent of how far Amion's actual schedule build-out currently
+#' reaches.
+#' @keywords internal
+.ay_week_starts <- function(ref_date = Sys.Date()) {
+  ay_start_year <- current_ay_start(ref_date)
+  start_date <- as.Date(sprintf("%d-07-01", ay_start_year))
+  end_date   <- as.Date(sprintf("%d-06-30", ay_start_year + 1L))
+  start_week <- as.Date(lubridate::floor_date(start_date, "week", week_start = 7))
+  end_week   <- as.Date(lubridate::floor_date(end_date, "week", week_start = 7))
+  seq(start_week, end_week, by = "week")
+}
 
 #' @rdname mod_duty_hour_summary
 #' @export
@@ -30,8 +62,8 @@ mod_duty_hour_summary_ui <- function(id) {
     shiny::tags$div(
       style = "margin-bottom: 8px;",
       shinycssloaders::withSpinner(
-        plotly::plotlyOutput(ns("chart"), height = "380px"),
-        type = 6, color = .DUTY_HOURS_COLOR, size = 0.6
+        plotly::plotlyOutput(ns("chart"), height = "420px"),
+        type = 6, color = "#2a78d6", size = 0.6
       )
     ),
     shiny::uiOutput(ns("flags")),
@@ -44,7 +76,7 @@ mod_duty_hour_summary_ui <- function(id) {
   )
 }
 
-#' Duty-hour summary module — UI + server. Phase 1: read-only.
+#' Duty-hour summary module — UI + server. Read-only display.
 #'
 #' @param id Module namespace id.
 #' @param resident_id Reactive returning the currently-selected RDM
@@ -85,9 +117,38 @@ mod_duty_hour_summary_server <- function(id, resident_id, rdm_token, redcap_url,
       )
     })
 
-    resident_weekly <- shiny::reactive({
+    # Unpadded — used only to pull the resident's Level for the header and
+    # to confirm there's any data at all before rendering.
+    resident_weekly_raw <- shiny::reactive({
       shiny::req(resident_id())
       duty_data()$weekly |> dplyr::filter(record_id == resident_id()) |> dplyr::arrange(week_start)
+    })
+
+    # Padded to the full academic year (Jul 1 - Jun 30) — see file header.
+    resident_weekly <- shiny::reactive({
+      all_weeks <- data.frame(week_start = .ay_week_starts())
+      all_weeks |>
+        dplyr::left_join(resident_weekly_raw(), by = "week_start") |>
+        dplyr::mutate(Total_Hours = ifelse(is.na(Total_Hours), 0, Total_Hours),
+                      Home_Hours  = ifelse(is.na(Home_Hours), 0, Home_Hours)) |>
+        dplyr::arrange(week_start)
+    })
+
+    # Full week x category x verified grid, 0-filled — guarantees the
+    # stacked chart's x-axis spans the whole AY even where no data exists
+    # yet for a given (week, category) combination.
+    resident_by_cat <- shiny::reactive({
+      shiny::req(resident_id())
+      raw <- duty_data()$weekly_by_category |> dplyr::filter(record_id == resident_id())
+      grid <- expand.grid(
+        week_start = .ay_week_starts(),
+        super_category = names(DUTY_HOUR_CATEGORY_COLORS),
+        verified = c(TRUE, FALSE),
+        stringsAsFactors = FALSE
+      )
+      grid |>
+        dplyr::left_join(raw, by = c("week_start", "super_category", "verified")) |>
+        dplyr::mutate(Hours = ifelse(is.na(Hours), 0, Hours))
     })
 
     resident_gaps <- shiny::reactive({
@@ -96,82 +157,84 @@ mod_duty_hour_summary_server <- function(id, resident_id, rdm_token, redcap_url,
     })
 
     output$header <- shiny::renderUI({
-      shiny::req(nrow(resident_weekly()) > 0)
+      shiny::req(nrow(resident_weekly_raw()) > 0)
       shiny::tagList(
-        shiny::h5(paste0("Duty Hours — ", resident_weekly()$Level[1], " class")),
+        shiny::h5(paste0("Duty Hours — ", resident_weekly_raw()$Level[1], " class")),
         shiny::p(class = "text-muted small",
-                 "Estimated hours from your Amion schedule (current academic year). Confirmed/edited days, plus any moonlighting or at-home chart-review hours you've logged, are reflected once saved via the confirm flow above."),
-        shiny::p(class = "text-muted small",
-                 shiny::tags$strong("Weeks after today (lighter bars) are your upcoming scheduled hours"),
-                 " — hours you're expected to work based on your posted schedule, not hours you've actually worked yet.")
+                 "Bars are colored by rotation type; the legend and hover text name each one. ",
+                 shiny::tags$strong("Solid = verified"),
+                 " (you've confirmed or entered that day). ",
+                 shiny::tags$strong("Lighter = anticipated"),
+                 " — still just your Amion schedule, not yet confirmed, whether that day is past or future.")
       )
     })
 
     output$chart <- plotly::renderPlotly({
       shiny::validate(
-        shiny::need(nrow(resident_weekly()) > 0,
+        shiny::need(nrow(resident_weekly_raw()) > 0,
                     "No Amion schedule data available for this resident.")
       )
-      # Amion pre-builds the whole academic year, so `wk` routinely extends
-      # months past today — split into two bar traces (past/current vs
-      # future) so it reads as "hours worked" vs "hours scheduled," not one
-      # undifferentiated bar series. Split on week_END (week_start + 6d) <
-      # today, so a week that's only partly elapsed still counts as past/
-      # current rather than future.
-      wk <- resident_weekly() |>
-        dplyr::mutate(period = ifelse(week_start + 6 < Sys.Date(), "past", "future"))
-      wk_past   <- wk |> dplyr::filter(period == "past")
-      wk_future <- wk |> dplyr::filter(period == "future")
+      wk  <- resident_weekly()
+      cat <- resident_by_cat()
+      cats <- names(DUTY_HOUR_CATEGORY_COLORS)
 
       p <- plotly::plot_ly()
-      if (nrow(wk_past) > 0) {
+      for (cc in cats) {
+        base_color <- unname(DUTY_HOUR_CATEGORY_COLORS[[cc]])
+        verified_rows   <- cat[cat$super_category == cc & cat$verified, ]
+        anticipated_rows <- cat[cat$super_category == cc & !cat$verified, ]
+        verified_rows   <- verified_rows[order(verified_rows$week_start), ]
+        anticipated_rows <- anticipated_rows[order(anticipated_rows$week_start), ]
+
         p <- p |> plotly::add_trace(
-          data = wk_past, x = ~week_start, y = ~Total_Hours, type = "bar", name = "Hours worked",
-          marker = list(color = .DUTY_HOURS_COLOR),
-          hovertemplate = "Week of %{x}<br>%{y:.1f} hours worked<extra></extra>"
+          data = verified_rows, x = ~week_start, y = ~Hours, type = "bar",
+          name = cc, legendgroup = cc, showlegend = TRUE,
+          marker = list(color = .hex_to_rgba(base_color, .DUTY_HOURS_VERIFIED_ALPHA)),
+          hovertemplate = paste0(cc, " (verified)<br>Week of %{x}<br>%{y:.1f} hours<extra></extra>")
         )
-      }
-      if (nrow(wk_future) > 0) {
         p <- p |> plotly::add_trace(
-          data = wk_future, x = ~week_start, y = ~Total_Hours, type = "bar", name = "Hours scheduled (upcoming)",
-          marker = list(color = .DUTY_HOURS_FUTURE_COLOR),
-          hovertemplate = "Week of %{x}<br>%{y:.1f} hours scheduled<extra></extra>"
+          data = anticipated_rows, x = ~week_start, y = ~Hours, type = "bar",
+          name = cc, legendgroup = cc, showlegend = FALSE,
+          marker = list(color = .hex_to_rgba(base_color, .DUTY_HOURS_ANTICIPATED_ALPHA)),
+          hovertemplate = paste0(cc, " (anticipated)<br>Week of %{x}<br>%{y:.1f} hours<extra></extra>")
         )
       }
 
-      today_shape <- if (nrow(wk_future) > 0 || nrow(wk_past) > 0) {
-        list(type = "line", x0 = Sys.Date(), x1 = Sys.Date(), xref = "x",
-             y0 = 0, y1 = 1, yref = "paper",
-             line = list(color = .DUTY_HOURS_TODAY_COLOR, dash = "dot", width = 1.5))
-      }
-      today_annotation <- if (nrow(wk_future) > 0 || nrow(wk_past) > 0) {
-        list(x = Sys.Date(), xref = "x", y = 1, yref = "paper", yanchor = "bottom",
-             text = "Today", showarrow = FALSE, font = list(color = .DUTY_HOURS_TODAY_COLOR, size = 11))
-      }
+      today_x <- as.numeric(Sys.Date()) * 24 * 60 * 60 * 1000  # ms epoch, matches plotly's date axis
 
       p |>
         plotly::add_trace(
           data = wk, x = ~week_start, y = ~rolling_4wk_avg_hours, type = "scatter", mode = "lines+markers",
-          name = "4-week rolling avg", line = list(color = .DUTY_HOURS_AVG_COLOR, width = 2),
+          name = "4-week rolling avg", legendgroup = "avg",
+          line = list(color = .DUTY_HOURS_AVG_COLOR, width = 2),
+          marker = list(color = .DUTY_HOURS_AVG_COLOR, size = 5),
           hovertemplate = "Week of %{x}<br>4wk avg: %{y:.1f} hours<extra></extra>"
         ) |>
         plotly::layout(
-          xaxis = list(title = "", gridcolor = "#e9eff0"),
+          barmode = "stack",
+          xaxis = list(
+            title = "", gridcolor = "#e9eff0",
+            dtick = 14 * 24 * 60 * 60 * 1000,  # 2-week ticks (ms) — more granular than plotly's month-level default
+            tickformat = "%b %d", tickangle = -45
+          ),
           yaxis = list(title = "Hours", zeroline = FALSE, gridcolor = "#e9eff0"),
           shapes = list(
             list(type = "line", x0 = 0, x1 = 1, xref = "paper",
                  y0 = 80, y1 = 80, yref = "y",
                  line = list(color = .DUTY_HOURS_LIMIT_COLOR, dash = "dash", width = 1.5)),
-            today_shape
+            list(type = "line", x0 = today_x, x1 = today_x, xref = "x",
+                 y0 = 0, y1 = 1, yref = "paper",
+                 line = list(color = .DUTY_HOURS_TODAY_COLOR, dash = "dot", width = 1.5))
           ),
           annotations = list(
             list(x = 1, xref = "paper", y = 80, yref = "y", xanchor = "right", yanchor = "bottom",
                  text = "80h reference", showarrow = FALSE,
                  font = list(color = .DUTY_HOURS_LIMIT_COLOR, size = 11)),
-            today_annotation
+            list(x = today_x, xref = "x", y = 1, yref = "paper", yanchor = "bottom",
+                 text = "Today", showarrow = FALSE, font = list(color = .DUTY_HOURS_TODAY_COLOR, size = 11))
           ),
-          barmode = "overlay",
-          legend = list(orientation = "h", x = 0, y = 1.15),
+          legend = list(orientation = "h", x = 0, y = 1.18),
+          margin = list(b = 90),
           plot_bgcolor = "rgba(0,0,0,0)", paper_bgcolor = "rgba(0,0,0,0)",
           font = list(family = "inherit")
         ) |>
@@ -179,9 +242,9 @@ mod_duty_hour_summary_server <- function(id, resident_id, rdm_token, redcap_url,
     })
 
     output$flags <- shiny::renderUI({
-      shiny::req(nrow(resident_weekly()) > 0)
-      wk     <- resident_weekly()
-      latest <- wk[nrow(wk), ]
+      shiny::req(nrow(resident_weekly_raw()) > 0)
+      wk_raw <- resident_weekly_raw()
+      latest <- wk_raw[nrow(wk_raw), ]
       gaps   <- resident_gaps()
 
       items <- list(
@@ -218,19 +281,18 @@ mod_duty_hour_summary_server <- function(id, resident_id, rdm_token, redcap_url,
     })
 
     output$weekly_table <- DT::renderDT({
-      shiny::req(nrow(resident_weekly()) > 0)
+      shiny::req(nrow(resident_weekly_raw()) > 0)
       tbl <- resident_weekly() |>
-        dplyr::mutate(Period = ifelse(week_start + 6 < Sys.Date(), "Worked", "Scheduled")) |>
-        dplyr::select(week_start, Period, Total_Hours, Days_Worked, rolling_4wk_avg_hours,
+        dplyr::select(week_start, Total_Hours, Home_Hours, Days_Worked, rolling_4wk_avg_hours,
                       flag_80h, rolling_days_per_week, flag_low_days) |>
         dplyr::arrange(dplyr::desc(week_start))
       DT::datatable(
         tbl, rownames = FALSE,
-        colnames = c("Week of", "Period", "Hours", "Days Worked", "4wk Avg Hours",
+        colnames = c("Week of", "Hours", "At-Home Hours", "Days Worked", "4wk Avg Hours",
                     "80h Flag", "Days/wk Avg", "Low-Days Flag"),
         options = list(pageLength = 10, order = list(list(0, "desc")))
       ) |>
-        DT::formatRound(columns = c("Total_Hours", "rolling_4wk_avg_hours", "rolling_days_per_week"), digits = 1)
+        DT::formatRound(columns = c("Total_Hours", "Home_Hours", "rolling_4wk_avg_hours", "rolling_days_per_week"), digits = 1)
     })
   })
 }
