@@ -1,19 +1,17 @@
 # =============================================================================
-# Duty-hour block construction + summary/flags — Phase 1 (read-only default
-# generation only; no editing or persistence yet — see amion_integration
-# project notes, 2026-09-07 kickoff, for the full staged plan). Turns
-# Amion's schedule markers into an actual-hours estimate per resident-date
-# via DUTY_HOUR_DEFAULT_MAP (duty_hour_defaults.R), then rolls up to daily/
+# Duty-hour block construction + summary/flags. Turns Amion's schedule
+# markers into an actual-hours estimate per resident-date via
+# DUTY_HOUR_DEFAULT_MAP (duty_hour_defaults.R), then rolls up to daily/
 # weekly/rolling-4-week totals plus three informational flags — nothing
-# here enforces anything, it's a read-only preview for Fred to validate the
-# default-generation logic against real data before anything becomes
-# editable/persisted (same staged pattern every other amiontools feature
-# used).
+# here enforces anything, it's a preview/summary, not a compliance record.
 #
-# Deliberately does NOT include moonlighting or at-home chart-review time —
-# Amion has no visibility into either (both are resident self-report,
-# Phase 2+ work once there's a persisted log to write them into). Totals
-# here are Amion-derived only; any UI showing this must label it as such.
+# Phase 2 (2026-09-12+, duty_hour_entries.R): any resident-confirmed/
+# entered day overrides the Amion default via overlay_duty_hour_entries(),
+# including Moonlighting and At-Home Chart Review hours (both count toward
+# Total_Hours, per Fred 2026-09-07/2026-09-15) — those only appear once the
+# resident has actually logged them (Amion itself has no visibility into
+# either), so totals for a resident with no saved entries yet are still
+# Amion-derived-only; UI showing this should make that distinction clear.
 #
 # Day-off handling: a "Day off" within a ward-roster rotation still carries
 # an r-type marker row (the rotation continues; the resident is just off
@@ -371,8 +369,11 @@ build_duty_hour_summary <- function(rdm_token,
     dplyr::filter(!is.na(Hours)) |>
     dplyr::group_by(record_id, name, Level, Date) |>
     dplyr::summarise(
+      # Total_Hours includes everything (Moonlighting AND At-Home Chart
+      # Review both count, per Fred 2026-09-15). Home_Hours is a visibility
+      # breakout of the same total, by category, not an exclusion.
       Total_Hours = sum(Hours[counts_toward_duty]),
-      Home_Hours  = sum(Hours[!counts_toward_duty]),
+      Home_Hours  = sum(Hours[category == "At-Home Chart Review"]),
       .groups = "drop"
     ) |>
     dplyr::arrange(record_id, Date)

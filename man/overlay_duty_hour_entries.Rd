@@ -22,9 +22,12 @@ produces internally).}
 }
 \value{
 duty_blocks with entry-covered dates replaced/augmented. Gains a
-\code{counts_toward_duty} logical column (FALSE only for "At-Home Chart
-Review" rows) — daily/weekly aggregation should sum Hours only where
-this is TRUE for Total_Hours, and separately for at-home visibility.
+\code{counts_toward_duty} logical column — currently always TRUE (both
+Moonlighting and At-Home Chart Review count toward Total_Hours, per
+Fred) but kept as a column rather than removed outright in case a
+future category needs excluding again; daily/weekly aggregation in
+duty_hour_summary.R sums Hours by category directly for the separate
+Home_Hours visibility column, not via this flag.
 }
 \description{
 Overlay resident-confirmed/entered duty_hour_log rows onto

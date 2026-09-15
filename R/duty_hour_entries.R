@@ -12,12 +12,14 @@
 # lives" reuse rule; see gmed's orphaned submit_* family as the cautionary
 # example of building a write layer nobody ends up using).
 #
-# At-Home Chart Review hours are tracked but deliberately excluded from
-# Total_Hours/the 80h flag — ACGME's duty-hour cap covers clinical/moon-
-# lighting duty, not take-home reading (standard ACGME convention; flagged
-# here since it's a real assumption, not stated explicitly by Fred for this
-# specific field — correct if wrong). Moonlighting IS included, per Fred
-# 2026-09-07 ("counts towards duty hours").
+# At-Home Chart Review hours count toward Total_Hours/the 80h flag, same as
+# Moonlighting — confirmed by Fred 2026-09-15 ("doing charts is actual work
+# and should count"), correcting this file's original assumption (standard
+# ACGME convention excludes take-home reading — Fred's call is that chart
+# review specifically is real clinical work, not passive reading, so it
+# counts here). Still broken out as its own Home_Hours column (see
+# duty_hour_summary.R) for visibility even though it's now folded into
+# Total_Hours too.
 # =============================================================================
 
 #' @importFrom REDCapR redcap_read
@@ -129,12 +131,15 @@ pull_duty_hour_log <- function(rdm_token, redcap_url, record_id = NULL) {
 #'   produces internally).
 #' @param entries pull_duty_hour_log()'s return value.
 #' @return duty_blocks with entry-covered dates replaced/augmented. Gains a
-#'   `counts_toward_duty` logical column (FALSE only for "At-Home Chart
-#'   Review" rows) — daily/weekly aggregation should sum Hours only where
-#'   this is TRUE for Total_Hours, and separately for at-home visibility.
+#'   `counts_toward_duty` logical column — currently always TRUE (both
+#'   Moonlighting and At-Home Chart Review count toward Total_Hours, per
+#'   Fred) but kept as a column rather than removed outright in case a
+#'   future category needs excluding again; daily/weekly aggregation in
+#'   duty_hour_summary.R sums Hours by category directly for the separate
+#'   Home_Hours visibility column, not via this flag.
 #' @export
 overlay_duty_hour_entries <- function(duty_blocks, entries) {
-  duty_blocks$counts_toward_duty <- duty_blocks$category != "At-Home Chart Review"
+  duty_blocks$counts_toward_duty <- TRUE
 
   if (is.null(entries) || nrow(entries) == 0) return(duty_blocks)
 
@@ -186,7 +191,7 @@ overlay_duty_hour_entries <- function(duty_blocks, entries) {
     out[, names(kept)]
   }
   moonlighting_rows <- extra_rows("dh_moonlighting_hours", "Moonlighting", TRUE)
-  home_rows         <- extra_rows("dh_home_hours", "At-Home Chart Review", FALSE)
+  home_rows         <- extra_rows("dh_home_hours", "At-Home Chart Review", TRUE)
 
   dplyr::bind_rows(kept, main_rows, moonlighting_rows, home_rows) |>
     dplyr::arrange(record_id, Date)

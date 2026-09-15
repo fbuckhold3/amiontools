@@ -1,12 +1,11 @@
 # =============================================================================
-# Shiny module: duty-hour summary — Phase 1 (read-only preview of Amion-
-# derived default hours; no editing/persistence yet, no moonlighting or
-# at-home chart-review time — see duty_hour_summary.R header for why).
-# Weekly hours chart with a 4-week rolling-average line and an 80h
-# reference line, plus the rest-gap and low-days flags surfaced as plain
-# text. Nothing here is enforcement — it's a read-only preview for Fred to
-# validate the default-generation logic against real data, same staged
-# pattern every other amiontools feature used before becoming interactive.
+# Shiny module: duty-hour summary chart — read-only display (the actual
+# editing happens in imslu.ind.dash's mod_duty_hour_confirm, which writes
+# to RDM's duty_hour_log; this module just reflects whatever
+# build_duty_hour_summary() computes, Amion defaults merged with any saved
+# resident entries). Weekly hours chart with a 4-week rolling-average line
+# and an 80h reference line, plus the rest-gap and low-days flags surfaced
+# as plain text. Nothing here is enforcement — it's a summary view.
 # =============================================================================
 
 #' @importFrom shiny NS moduleServer reactive req validate need renderUI uiOutput tagList h5 p div tags
@@ -89,7 +88,7 @@ mod_duty_hour_summary_server <- function(id, resident_id, rdm_token, redcap_url,
       shiny::tagList(
         shiny::h5(paste0("Duty Hours — ", resident_weekly()$Level[1], " class")),
         shiny::p(class = "text-muted small",
-                 "Estimated hours from your Amion schedule (current academic year). Does not yet include moonlighting or at-home chart-review time — coming soon."),
+                 "Estimated hours from your Amion schedule (current academic year). Confirmed/edited days, plus any moonlighting or at-home chart-review hours you've logged, are reflected once saved via the confirm flow above."),
         shiny::p(class = "text-muted small",
                  shiny::tags$strong("Weeks after today (lighter bars) are your upcoming scheduled hours"),
                  " — hours you're expected to work based on your posted schedule, not hours you've actually worked yet.")

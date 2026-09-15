@@ -68,6 +68,7 @@ ROTATION_CATEGORY_MAP <- c(
   "SLU Palliative"         = "SLUH Ambulatory",
   "SLU Sleep"              = "SLUH Ambulatory",
   "Cards Consults"         = "SLUH Ambulatory",
+  "SLU Cards Consult"      = "SLUH Ambulatory", # renamed variant, confirmed same rotation by Fred 2026-09-15
   "optho"                  = "SLUH Ambulatory",
   "Primary Care"           = "SLUH Ambulatory",
 
@@ -80,6 +81,7 @@ ROTATION_CATEGORY_MAP <- c(
   "Thanksgiving Holiday"   = "Time Off/Holiday",
   "NY Holiday"             = "Time Off/Holiday",
   "Eid Holiday"            = "Time Off/Holiday",
+  "Holiday"                = "Time Off/Holiday", # generic label, confirmed same bucket by Fred 2026-09-15
 
   "1 Jeopardy"             = "Jeopardy",
   "1 Int Jeopardy"         = "Jeopardy",
