@@ -116,8 +116,14 @@ build_duty_hour_blocks <- function(rdm_token,
       # segment's times while Hours silently reflects both — found via
       # live-data verification (2026-09-07): a Liam Arnold BRIDGE day
       # showed Hours=8 but block_start/end="0800-1200" (4h) before this fix.
-      block_start = as.character(`Start Time`[which.min(to_int_time(`Start Time`))]),
-      block_end   = as.character(`End Time`[which.max(to_int_time(`End Time`))]),
+      # formatC-padded, not as.character() directly — Amion's raw Start/End
+      # Time is numeric (e.g. 800, not "0800"), and as.character(800) drops
+      # the leading zero. Found live 2026-09-15: a VA Ambulatory day showed
+      # "80:0" instead of "08:00" in the confirm-flow form (Fred's
+      # screenshot) because this un-padded 3-char string fed the same
+      # substr-based HH:MM display logic every other block_start/end uses.
+      block_start = formatC(to_int_time(`Start Time`)[which.min(to_int_time(`Start Time`))], width = 4, flag = "0"),
+      block_end   = formatC(to_int_time(`End Time`)[which.max(to_int_time(`End Time`))], width = 4, flag = "0"),
       Hours = sum(seg_hours),
       .groups = "drop"
     )
