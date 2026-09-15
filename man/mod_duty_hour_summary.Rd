@@ -15,7 +15,8 @@ mod_duty_hour_summary_server(
   redcap_url,
   amion_lo = AMION_LO_DEFAULT,
   crosswalk_r = NULL,
-  amion_r = NULL
+  amion_r = NULL,
+  entries_r = NULL
 )
 }
 \arguments{
@@ -35,6 +36,17 @@ use_amion_data()) returning pre-fetched crosswalk/Amion data — pass
 these when composing this module alongside the other Schedule-tab
 modules to fetch once instead of re-fetching. NULL (default): fetches
 its own data.}
+
+\item{entries_r}{Optional reactive returning a pre-fetched
+pull_duty_hour_log() result — pass this when composing alongside
+another module that already fetched it (e.g. the confirm-flow's own
+entries_r) to skip this module's internal unrestricted (all-resident)
+pull_duty_hour_log() call. A single-resident-scoped entries_r works
+fine here even though build_duty_hour_summary() normally expects
+program-wide entries — this module filters its result down to
+resident_id() anyway, so the narrower input is equivalent. NULL
+(default): fetches its own (all-resident) entries, unchanged from
+before this param existed.}
 }
 \description{
 Duty-hour summary module — UI + server. Phase 1: read-only.
