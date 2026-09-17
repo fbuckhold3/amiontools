@@ -131,6 +131,7 @@ NULL
         format = "json", type = "flat",
         records    = as.character(target_record_id),
         `forms[0]` = "peer_eval",
+        `fields[0]` = "record_id",
         rawOrLabel = "raw", rawOrLabelHeaders = "raw",
         exportCheckboxLabel = "false", exportSurveyFields = "false",
         exportDataAccessGroups = "false", returnFormat = "json"
