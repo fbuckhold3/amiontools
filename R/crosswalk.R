@@ -43,6 +43,15 @@ get_amion_crosswalk <- function(rdm_token, redcap_url, verified_only = TRUE) {
   }
   dat$amion_staff_id <- as.integer(dat$amion_staff_id)
 
+  # REDCapR::redcap_read() type-guesses columns -- since every record_id in
+  # this project is numeric-looking, it comes back as a double, not a
+  # string. That silently breaks any downstream join against a record_id
+  # pulled via the plain REDCap API (which is always character), e.g.
+  # overlay_duty_hour_entries()'s anti_join against pull_duty_hour_log().
+  # Force character here so record_id stays consistently typed through the
+  # whole crosswalk-derived pipeline.
+  dat$record_id <- as.character(dat$record_id)
+
   dat <- gmed::calculate_resident_level(dat)
 
   dat[, c("record_id", "name", "amion_staff_id", "amion_verified",
