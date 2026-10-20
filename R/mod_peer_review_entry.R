@@ -122,6 +122,12 @@ NULL
 # All 4 now take redcap_url/rdm_token explicitly (were implicit via
 # ind.dash's app_config global before this promotion).
 
+# Next peer_eval instance under the target resident's record. Returns 1L
+# only when the record genuinely has no peer_eval rows, and NA_integer_ when
+# REDCap can't be read (non-200, error, or an {"error": ...} body) — callers
+# must treat NA as "don't write", since .peer_submit() uses overwrite mode
+# and a guessed instance could clobber an existing review. Same contract as
+# .att_live_max_question_instance() in mod_attendance.R.
 .peer_next_instance <- function(target_record_id, redcap_url, rdm_token) {
   tryCatch({
     resp <- httr::POST(
@@ -136,21 +142,23 @@ NULL
         exportCheckboxLabel = "false", exportSurveyFields = "false",
         exportDataAccessGroups = "false", returnFormat = "json"
       ),
-      encode = "form"
+      encode = "form", httr::timeout(15)
     )
-    if (httr::status_code(resp) == 200) {
-      dat <- jsonlite::fromJSON(httr::content(resp, "text", encoding = "UTF-8"))
-      if (is.data.frame(dat) && nrow(dat) > 0) {
-        pe <- dat[!is.na(dat$redcap_repeat_instrument) &
-                    dat$redcap_repeat_instrument == "peer_eval", ]
-        if (nrow(pe) > 0) {
-          inst <- suppressWarnings(as.numeric(pe$redcap_repeat_instance))
-          return(max(inst[!is.na(inst)], 0L) + 1L)
-        }
-      }
-    }
-    1L
-  }, error = function(e) 1L)
+    if (httr::status_code(resp) != 200) return(NA_integer_)
+    dat <- jsonlite::fromJSON(httr::content(resp, "text", encoding = "UTF-8"))
+    # "[]" parses to an empty list (no rows); an {"error": ...} body parses
+    # to a named list — the latter is a failure, not "no instances".
+    if (!is.data.frame(dat)) return(if (length(dat) == 0) 1L else NA_integer_)
+    if (nrow(dat) == 0 || !"redcap_repeat_instrument" %in% names(dat)) return(1L)
+    pe <- dat[!is.na(dat$redcap_repeat_instrument) &
+                dat$redcap_repeat_instrument == "peer_eval", , drop = FALSE]
+    inst <- suppressWarnings(as.integer(pe$redcap_repeat_instance))
+    inst <- inst[!is.na(inst)]
+    if (length(inst) == 0) 1L else max(inst) + 1L
+  }, error = function(e) {
+    message("[mod_peer_review_entry] next-instance lookup failed: ", conditionMessage(e))
+    NA_integer_
+  })
 }
 
 # Counts how many peer_eval instances (anywhere, under anyone's record) carry
@@ -269,6 +277,10 @@ NULL
 
 .peer_submit <- function(target_record_id, evaluator_id, fields, redcap_url, rdm_token) {
   next_inst <- .peer_next_instance(target_record_id, redcap_url, rdm_token)
+  if (is.na(next_inst)) {
+    stop("Couldn't reach REDCap to confirm — nothing saved. Please try again.",
+         call. = FALSE)
+  }
   full_data <- c(
     list(record_id = as.character(target_record_id),
          redcap_repeat_instrument = "peer_eval",

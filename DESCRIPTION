@@ -17,6 +17,7 @@ Imports:
     DT,
     gmed,
     httr,
+    jsonlite,
     lubridate,
     plotly,
     REDCapR,
