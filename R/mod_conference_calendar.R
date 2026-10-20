@@ -116,12 +116,25 @@ mod_conference_calendar_server <- function(id, resident_id, rdm_token, redcap_ur
         )
       })
 
+      # Each color gets a one-line "what this means" (Fred, 2026-10-20) —
+      # residents were reading black as missed. Window times come from
+      # .CONF_CHECKIN_WINDOWS so the text can't drift from the rule.
+      w <- .CONF_CHECKIN_WINDOWS
       legend <- shiny::div(
-        style = "display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:0.78rem;color:#6c757d;",
-        .conf_cal_legend_item(.CONF_CAL_COLORS[["attended_ontime"]], "Attended, logged live"),
-        .conf_cal_legend_item(.CONF_CAL_COLORS[["attended_late"]], "Attended, logged later"),
-        .conf_cal_legend_item(.CONF_CAL_COLORS[["missing"]], "Expected, missing"),
-        .conf_cal_legend_item(.CONF_CAL_COLORS[["not_expected"]], "Not expected (off, elective, etc.)")
+        style = "display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:start;margin-top:12px;font-size:0.78rem;color:#6c757d;",
+        .conf_cal_legend_item(.CONF_CAL_COLORS[["attended_ontime"]], "Checked in during conference",
+          paste0("Logged on the day, during conference time (SLUH ", .conf_cal_window_text(w[["1"]]),
+                 ", VA ", .conf_cal_window_text(w[["2"]]), ").")),
+        .conf_cal_legend_item(.CONF_CAL_COLORS[["attended_late"]], "Logged after the fact",
+          "Attendance logged, but later that day or on a later day."),
+        .conf_cal_legend_item(.CONF_CAL_COLORS[["missing"]], "Missed",
+          "You were expected at conference and nothing was logged."),
+        .conf_cal_legend_item(.CONF_CAL_COLORS[["not_expected"]], "Not expected",
+          paste("Your schedule excused you that day: elective, night float, emergency medicine,",
+                "time off/holiday, jeopardy, admin, or a VA afternoon clinic.",
+                "Also shown when there's no schedule data. Doesn't count against you.")),
+        .conf_cal_legend_item(.CONF_CAL_COLORS[["pending_today"]], "Today",
+          "Expected today, not logged yet.", border = "1px dashed #999")
       )
 
       shiny::tagList(
@@ -145,9 +158,24 @@ mod_conference_calendar_server <- function(id, resident_id, rdm_token, redcap_ur
   })
 }
 
-.conf_cal_legend_item <- function(color, label) {
-  shiny::div(style = "display:flex;align-items:center;gap:5px;",
-    shiny::div(style = paste0("width:12px;height:12px;border-radius:3px;background:", color, ";")),
-    label
+# One legend row = two grid cells (swatch + label, then description), so
+# the descriptions line up in a column.
+.conf_cal_legend_item <- function(color, label, description, border = "none") {
+  shiny::tagList(
+    shiny::div(style = "display:flex;align-items:center;gap:5px;white-space:nowrap;",
+      shiny::div(style = paste0("width:12px;height:12px;border-radius:3px;flex:none;background:",
+                                color, ";border:", border, ";")),
+      shiny::tags$strong(style = "font-weight:600;", label)
+    ),
+    shiny::div(description)
   )
+}
+
+# c(690, 780) -> "11:30-1:00" (12-hour clock, no am/pm: always midday).
+.conf_cal_window_text <- function(w) {
+  fmt <- function(m) {
+    h <- m %/% 60; h12 <- if (h > 12) h - 12 else h
+    sprintf("%d:%02d", h12, m %% 60)
+  }
+  paste0(fmt(w[1]), "\u2013", fmt(w[2]))
 }

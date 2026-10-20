@@ -5,10 +5,11 @@
 # attended/no-entry/upcoming heatmap in mod_attendance.R.
 #
 # Status categories (color mapping is the UI's job, not this data layer's):
-#   "attended_ontime" — expected, logged the same calendar day (real-time
-#                        check-in) -> green
-#   "attended_late"    — expected, logged on a LATER calendar day than the
-#                        conference date (after-the-fact entry) -> yellow
+#   "attended_ontime" — expected, logged on the conference day INSIDE that
+#                        conference's check-in window (.CONF_CHECKIN_WINDOWS,
+#                        Central time) -> green
+#   "attended_late"    — expected, logged but not inside the window: later
+#                        that day, or on a later day (after-the-fact) -> yellow
 #   "missing"          — expected, nothing logged, and the day is already
 #                        over -> red
 #   "not_expected"     — not an expected day at all (off, elective, night
@@ -24,6 +25,31 @@
 
 #' @importFrom dplyr filter left_join group_by summarise
 NULL
+
+# Check-in windows for "logged during conference" (Fred, 2026-10-20), in
+# minutes after midnight, America/Chicago, keyed by q_conference_type code.
+# Picked from prod check-in times: SLUH clusters 11:45-12:45, VA runs later.
+# Codes not listed here (Afternoon School "3") keep the old same-day rule.
+.CONF_CHECKIN_WINDOWS <- list(
+  "1" = c(11 * 60 + 30, 13 * 60),       # SLUH Noon Conference  11:30-1:00
+  "4" = c(11 * 60 + 30, 13 * 60),       # SLUH Grand Rounds     11:30-1:00
+  "2" = c(12 * 60,      13 * 60 + 30),  # VA Noon Conference    12:00-1:30
+  "5" = c(11 * 60 + 30, 13 * 60 + 30)   # Other/Specialty       11:30-1:30
+)
+
+# TRUE when an entry counts as logged live: saved on the conference date
+# and, for conference types with a window, inside it (inclusive).
+.conf_logged_live <- function(Date, entry_date, entry_time, q_conference_type) {
+  same_day <- !is.na(entry_date) & entry_date == Date
+  mins <- as.integer(format(entry_time, "%H", tz = "America/Chicago")) * 60L +
+          as.integer(format(entry_time, "%M", tz = "America/Chicago"))
+  in_window <- mapply(function(code, m) {
+    w <- .CONF_CHECKIN_WINDOWS[[as.character(code)]]
+    if (is.null(w)) return(TRUE)
+    !is.na(m) && m >= w[1] && m <= w[2]
+  }, q_conference_type, mins, USE.NAMES = FALSE)
+  same_day & as.logical(in_window)
+}
 
 #' Build one resident's day-by-day conference status for the attendance
 #' calendar.
@@ -91,16 +117,23 @@ build_conference_calendar_data <- function(record_id, rdm_token, redcap_url,
     cal$expected <- classify_expected_conference(cal$category, cal$Clinic_Sessions)
   }
 
-  # First log entry (if any) per date, for this resident.
+  # Per date: any entry at all, and whether any entry was logged live
+  # (on the day, inside its conference's check-in window).
+  if (nrow(log_rid) > 0) {
+    log_rid$live <- .conf_logged_live(log_rid$Date, log_rid$entry_date,
+                                      log_rid$entry_time, log_rid$q_conference_type)
+  } else {
+    log_rid$live <- logical(0)
+  }
   log_by_day <- log_rid |>
     dplyr::group_by(Date) |>
-    dplyr::summarise(entry_date = min(entry_date), .groups = "drop")
+    dplyr::summarise(logged = TRUE, logged_live = any(live), .groups = "drop")
   cal <- cal |> dplyr::left_join(log_by_day, by = "Date")
 
   cal$status <- ifelse(
     cal$expected == "None", "not_expected",
-    ifelse(!is.na(cal$entry_date),
-           ifelse(cal$entry_date > cal$Date, "attended_late", "attended_ontime"),
+    ifelse(!is.na(cal$logged),
+           ifelse(cal$logged_live, "attended_ontime", "attended_late"),
            ifelse(cal$Date == today, "pending_today", "missing"))
   )
 

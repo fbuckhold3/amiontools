@@ -22,7 +22,8 @@ NULL
 #'   entry_date (the calendar date the entry was actually SAVED — same as
 #'   Date for a real-time submission, later for an after-the-fact one; lets
 #'   callers distinguish "attended, logged live" from "attended, logged
-#'   late"). One row per logged entry — a resident can have zero, one, or
+#'   late"), entry_time (full save time as POSIXct, America/Chicago — NA
+#'   if the timestamp is missing or unparseable). One row per logged entry — a resident can have zero, one, or
 #'   more than one entry per date (e.g. both SLUH and VA logged the same
 #'   day is possible, though unusual).
 #' @export
@@ -37,6 +38,7 @@ pull_questions_log <- function(rdm_token, redcap_url) {
   if (nrow(raw) == 0) {
     return(data.frame(record_id = character(), Date = as.Date(character()),
                        q_conference_type = character(), entry_date = as.Date(character()),
+                       entry_time = as.POSIXct(character(), tz = "America/Chicago"),
                        stringsAsFactors = FALSE))
   }
 
@@ -54,6 +56,14 @@ pull_questions_log <- function(rdm_token, redcap_url) {
   raw <- raw[!is.na(raw$q_conference_type) & raw$q_conference_type != "", ]
 
   raw$entry_date <- as.Date(raw$q_entry_timestamp)
+  # Full save time, for "logged during conference" checks. q_entry_timestamp
+  # is stored as Central wall-clock time (at.noon's CONFERENCE_TIMEZONE;
+  # ind.dash/mod_attendance too, as of 2026-10-20).
+  # redcap_read() may already have guessed it as POSIXct (in UTC) — take
+  # the wall-clock text back out rather than shifting it across zones.
+  ts_chr <- if (inherits(raw$q_entry_timestamp, "POSIXt"))
+    format(raw$q_entry_timestamp, "%Y-%m-%d %H:%M:%S") else as.character(raw$q_entry_timestamp)
+  raw$entry_time <- as.POSIXct(ts_chr, tz = "America/Chicago", format = "%Y-%m-%d %H:%M:%S")
 
-  raw[!is.na(raw$Date), c("record_id", "Date", "q_conference_type", "entry_date")]
+  raw[!is.na(raw$Date), c("record_id", "Date", "q_conference_type", "entry_date", "entry_time")]
 }

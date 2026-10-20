@@ -299,7 +299,10 @@ mod_attendance_server <- function(id, rdm_data, resident_id, rdm_token, redcap_u
         q_conference_type   = conf,
         q_rotation          = if (needs_rotation) rot else "",
         q_answer            = "",
-        q_entry_timestamp   = format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+        # Central wall-clock time, matching at.noon's CONFERENCE_TIMEZONE —
+        # Sys.time() alone uses the server's zone (UTC on Connect), which
+        # would skew the calendar's "logged during conference" window check.
+        q_entry_timestamp   = format(Sys.time(), "%Y-%m-%d %H:%M:%S", tz = "America/Chicago")
       )
 
       # Next instance comes from a live REDCap read, not just display_data():
