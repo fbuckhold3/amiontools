@@ -18,7 +18,8 @@ or a future 5th "Other" choice once added to the dictionary),
 entry_date (the calendar date the entry was actually SAVED — same as
 Date for a real-time submission, later for an after-the-fact one; lets
 callers distinguish "attended, logged live" from "attended, logged
-late"). One row per logged entry — a resident can have zero, one, or
+late"), entry_time (full save time as POSIXct, America/Chicago — NA
+if the timestamp is missing or unparseable). One row per logged entry — a resident can have zero, one, or
 more than one entry per date (e.g. both SLUH and VA logged the same
 day is possible, though unusual).
 }

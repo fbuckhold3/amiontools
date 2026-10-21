@@ -170,6 +170,7 @@ mod_attendance_server <- function(id, rdm_data, resident_id, rdm_token, redcap_u
     form_open      <- reactiveVal(FALSE)
     local_new_rows <- reactiveVal(NULL)  # rows saved this session, ahead of the next full reload
     clicked_context <- reactiveVal(NULL)  # detail_text of the calendar day that opened the form, if any
+    offday_pending  <- reactiveVal(FALSE) # Save was clicked on a not-expected day; waiting on "Save anyway"
 
     base_data <- reactive({
       req(resident_id())
@@ -193,8 +194,8 @@ mod_attendance_server <- function(id, rdm_data, resident_id, rdm_token, redcap_u
       rbind(base[cols], extra[cols])
     })
 
-    observeEvent(input$btn_add,    { form_open(TRUE);  ss$save <- NULL; clicked_context(NULL) })
-    observeEvent(input$btn_cancel, { form_open(FALSE); ss$save <- NULL; clicked_context(NULL) })
+    observeEvent(input$btn_add,    { form_open(TRUE);  ss$save <- NULL; clicked_context(NULL); offday_pending(FALSE) })
+    observeEvent(input$btn_cancel, { form_open(FALSE); ss$save <- NULL; clicked_context(NULL); offday_pending(FALSE) })
 
     output$add_button_panel <- renderUI({
       if (form_open()) return(NULL)
@@ -230,6 +231,7 @@ mod_attendance_server <- function(id, rdm_data, resident_id, rdm_token, redcap_u
             selectInput(ns("att_rotation"), label = NULL,
               choices = c("-- select conference first --" = ""), selectize = FALSE, width = "100%")),
           uiOutput(ns("dup_warning")),
+          uiOutput(ns("offday_warning")),
           div(class = "d-flex align-items-center gap-2 mt-3",
             actionButton(ns("btn_save"), "Save", class = "btn btn-sm",
               style = "background:var(--gmed-primary); color:#fff; border:none; padding:6px 18px;"),
@@ -274,7 +276,45 @@ mod_attendance_server <- function(id, rdm_data, resident_id, rdm_token, redcap_u
           tags$i(class = "bi bi-exclamation-triangle-fill me-1"), r$message)
     })
 
-    observeEvent(input$btn_save, {
+    # Double check (Fred, 2026-10-20): saving attendance for a day the
+    # resident's schedule didn't expect conference first asks them to
+    # confirm the date. NULL = no check needed (expected day, or no
+    # calendar data to judge by -- never block a save on a missing
+    # schedule lookup).
+    offday_info <- function(d) {
+      cal <- tryCatch(calendar$data(), error = function(e) NULL)
+      if (is.null(cal) || nrow(cal) == 0 || is.null(d) || length(d) == 0 || is.na(d)) return(NULL)
+      row <- cal[cal$Date == d, , drop = FALSE]
+      if (nrow(row) == 0 || row$expected[1] != "None") return(NULL)
+      cat <- row$category[1]
+      list(category = if (is.na(cat) || cat == "UNMAPPED") NA_character_ else cat)
+    }
+
+    observeEvent(input$att_date, offday_pending(FALSE), ignoreInit = TRUE)
+    observeEvent(input$btn_change_date, offday_pending(FALSE))
+
+    output$offday_warning <- renderUI({
+      if (!offday_pending()) return(NULL)
+      info <- offday_info(input$att_date)
+      if (is.null(info)) return(NULL)
+      msg <- if (is.na(info$category))
+        "There's no schedule on file for that day, so conference wasn't expected. Is this the right date?"
+      else
+        paste0("Your schedule shows ", info$category,
+               " that day, so conference wasn't expected. Is this the right date?")
+      div(class = "alert alert-warning py-2 px-3 mt-2 mb-0", style = "font-size:0.85rem;",
+        tags$i(class = "bi bi-exclamation-triangle-fill me-1"), msg,
+        div(class = "d-flex gap-2 mt-2",
+          actionButton(ns("btn_save_anyway"), "Save anyway", class = "btn btn-sm btn-warning",
+            style = "padding:4px 14px;"),
+          actionButton(ns("btn_change_date"), "Change date", class = "btn btn-sm btn-outline-secondary",
+            style = "padding:4px 14px;")))
+    })
+
+    observeEvent(input$btn_save, save_attendance(confirmed_offday = FALSE))
+    observeEvent(input$btn_save_anyway, save_attendance(confirmed_offday = TRUE))
+
+    save_attendance <- function(confirmed_offday) {
       req(resident_id())
       d    <- input$att_date
       conf <- input$att_conference_type
@@ -293,6 +333,14 @@ mod_attendance_server <- function(id, rdm_data, resident_id, rdm_token, redcap_u
       if (needs_rotation && (is.null(rot) || !nzchar(rot))) {
         ss$save <- list(success = FALSE, message = "Please select your team/rotation."); return()
       }
+
+      # Afternoon School has no expected-day rule, so no off-day check.
+      if (!confirmed_offday && conf != "3" && !is.null(offday_info(d))) {
+        ss$save <- NULL
+        offday_pending(TRUE)
+        return()
+      }
+      offday_pending(FALSE)
 
       fields <- list(
         q_date              = format(d, "%Y-%m-%d"),
@@ -336,7 +384,7 @@ mod_attendance_server <- function(id, rdm_data, resident_id, rdm_token, redcap_u
         local_new_rows(rbind(local_new_rows(), new_row))
         form_open(FALSE)
       }
-    })
+    }
 
     # ── Overview: July-1 percentage, Afternoon School counter, heatmap ─────
     attendance_stats <- reactive({
@@ -406,7 +454,8 @@ mod_attendance_server <- function(id, rdm_data, resident_id, rdm_token, redcap_u
       resident_id = resident_id,
       rdm_token   = rdm_token,
       redcap_url  = redcap_url,
-      expected_calendar_r = cached_calendar
+      expected_calendar_r = cached_calendar,
+      new_entries_r = local_new_rows
     )
 
     # Click-to-log (Fred, 2026-09-04): clicking a calendar day opens this

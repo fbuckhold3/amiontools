@@ -67,7 +67,9 @@ expected: record_id, name, Level, Date, expected ("SLUH"/"VA"),
 attended (logical), logged_type (raw q_conference_type code(s) if
 any, else NA).}
 \item{summary_wide}{One row per resident: record_id, name, Level,
-Expected_Days, Attended_Days, Attendance_Rate (0-1).}
+Expected_Days, Attended_Days, Attendance_Rate (0-1) -- noon
+conference only -- plus Afternoon_School_Days (distinct dates with
+Afternoon School logged this AY; a count, no expectation/rate).}
 \item{class_avg_wide}{One row per Level: Level, Avg_Expected_Days,
 Avg_Attended_Days, Avg_Attendance_Rate.}
 }

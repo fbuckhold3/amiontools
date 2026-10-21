@@ -65,7 +65,10 @@ entirely. NULL (default): computed live from \code{amion}/
 Tibble, one row per weekday in \verb{[ay_start, min(ay_end, today)]}:
 Date, week_start (the Monday of that Date's week — for grouping into
 calendar rows), weekday_label ("Mon".."Fri"), expected ("SLUH"/"VA"/
-"None"), status (see file header), detail_text (human-readable
+"None"), category (rolled-up rotation category; NA when there's no
+schedule data), status (see file header; noon conference only),
+afternoon_school (TRUE if Afternoon School was logged that day),
+detail_text (human-readable
 scheduled-activity string for the hover tooltip, e.g. "Bronze (SLUH
 Inpatient)" or "Time Off/Holiday — not expected").
 }

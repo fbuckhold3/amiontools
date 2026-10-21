@@ -37,7 +37,9 @@ NULL
 #'       attended (logical), logged_type (raw q_conference_type code(s) if
 #'       any, else NA).}
 #'     \item{summary_wide}{One row per resident: record_id, name, Level,
-#'       Expected_Days, Attended_Days, Attendance_Rate (0-1).}
+#'       Expected_Days, Attended_Days, Attendance_Rate (0-1) -- noon
+#'       conference only -- plus Afternoon_School_Days (distinct dates with
+#'       Afternoon School logged this AY; a count, no expectation/rate).}
 #'     \item{class_avg_wide}{One row per Level: Level, Avg_Expected_Days,
 #'       Avg_Attended_Days, Avg_Attendance_Rate.}
 #'   }
@@ -87,6 +89,13 @@ build_attendance_reconciliation <- function(rdm_token, redcap_url,
                  c("record_id", "name", "Level", "Date", "expected")]
   }
 
+  # Afternoon School ("3") is not noon conference (Fred, 2026-10-20): it
+  # never counts as attending an expected day. Counted separately below.
+  as_log <- questions_log[questions_log$q_conference_type == "3" &
+                            questions_log$Date >= as.Date(sprintf("%d-07-01", ay_start)) &
+                            questions_log$Date <= today, , drop = FALSE]
+  questions_log <- questions_log[questions_log$q_conference_type != "3", , drop = FALSE]
+
   # Collapse questions_log to one row per (resident, date) -- concatenate if
   # more than one type was logged the same day (unusual but possible).
   log_by_day <- questions_log |>
@@ -105,6 +114,11 @@ build_attendance_reconciliation <- function(rdm_token, redcap_url,
       Attendance_Rate  = Attended_Days / Expected_Days,
       .groups = "drop"
     )
+  as_days <- as_log |>
+    dplyr::group_by(record_id) |>
+    dplyr::summarise(Afternoon_School_Days = dplyr::n_distinct(Date), .groups = "drop")
+  summary_wide <- summary_wide |> dplyr::left_join(as_days, by = "record_id")
+  summary_wide$Afternoon_School_Days[is.na(summary_wide$Afternoon_School_Days)] <- 0L
 
   class_avg_wide <- summary_wide |>
     dplyr::group_by(Level) |>

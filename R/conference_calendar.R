@@ -14,6 +14,12 @@
 #                        over -> red
 #   "not_expected"     — not an expected day at all (off, elective, night
 #                        float, excused CC-VA-pm, etc.) -> black
+#   "attended_unexpected" — not an expected day, but attendance was logged
+#                        anyway (Fred, 2026-10-20) -> blue
+#
+# Afternoon School (q_conference_type "3") is NOT noon conference (Fred,
+# 2026-10-20): it never sets a day's status. It's reported separately as
+# the `afternoon_school` flag (a dot on the tile in the UI).
 #   "pending_today"    — expected, nothing logged YET, but it's still
 #                        today -> distinct from "missing" (the day isn't
 #                        over) and from a colored past-day count
@@ -69,7 +75,10 @@ NULL
 #' @return Tibble, one row per weekday in `[ay_start, min(ay_end, today)]`:
 #'   Date, week_start (the Monday of that Date's week — for grouping into
 #'   calendar rows), weekday_label ("Mon".."Fri"), expected ("SLUH"/"VA"/
-#'   "None"), status (see file header), detail_text (human-readable
+#'   "None"), category (rolled-up rotation category; NA when there's no
+#'   schedule data), status (see file header; noon conference only),
+#'   afternoon_school (TRUE if Afternoon School was logged that day),
+#'   detail_text (human-readable
 #'   scheduled-activity string for the hover tooltip, e.g. "Bronze (SLUH
 #'   Inpatient)" or "Time Off/Holiday — not expected").
 #' @export
@@ -117,8 +126,11 @@ build_conference_calendar_data <- function(record_id, rdm_token, redcap_url,
     cal$expected <- classify_expected_conference(cal$category, cal$Clinic_Sessions)
   }
 
-  # Per date: any entry at all, and whether any entry was logged live
-  # (on the day, inside its conference's check-in window).
+  as_dates <- unique(log_rid$Date[log_rid$q_conference_type == "3"])
+  log_rid <- log_rid[log_rid$q_conference_type != "3", , drop = FALSE]
+
+  # Per date: any noon-conference entry at all, and whether any was logged
+  # live (on the day, inside its conference's check-in window).
   if (nrow(log_rid) > 0) {
     log_rid$live <- .conf_logged_live(log_rid$Date, log_rid$entry_date,
                                       log_rid$entry_time, log_rid$q_conference_type)
@@ -131,7 +143,8 @@ build_conference_calendar_data <- function(record_id, rdm_token, redcap_url,
   cal <- cal |> dplyr::left_join(log_by_day, by = "Date")
 
   cal$status <- ifelse(
-    cal$expected == "None", "not_expected",
+    cal$expected == "None",
+    ifelse(!is.na(cal$logged), "attended_unexpected", "not_expected"),
     ifelse(!is.na(cal$logged),
            ifelse(cal$logged_live, "attended_ontime", "attended_late"),
            ifelse(cal$Date == today, "pending_today", "missing"))
@@ -142,6 +155,57 @@ build_conference_calendar_data <- function(record_id, rdm_token, redcap_url,
     ifelse(is.na(cal$category) | cal$category == "UNMAPPED", "No schedule data", paste0(cal$category, " — not expected")),
     ifelse(is.na(cal$category), "No schedule data", cal$category)
   )
+  cal$detail_text <- ifelse(cal$status == "attended_unexpected",
+                            paste0(cal$detail_text, " \u00b7 attendance logged"),
+                            cal$detail_text)
+  cal$afternoon_school <- cal$Date %in% as_dates
+  cal$detail_text <- ifelse(cal$afternoon_school,
+                            paste0(cal$detail_text, " \u00b7 Afternoon School logged"),
+                            cal$detail_text)
 
-  cal[, c("Date", "week_start", "weekday_label", "expected", "status", "detail_text")]
+  cal[, c("Date", "week_start", "weekday_label", "expected", "category", "status",
+          "afternoon_school", "detail_text")]
+}
+
+# Patch an already-built calendar (from build_conference_calendar_data())
+# with entries saved this session, so a save recolors its tile instantly
+# instead of re-pulling every resident's log + the Amion schedule (Fred,
+# 2026-10-20). Same rules as the full build: Afternoon School ("3") only
+# sets the dot; anything else makes the day attended -- on time if logged
+# live, otherwise late, or "attended_unexpected" on a not-expected day.
+# `entries`: q_date, q_conference_type, q_entry_timestamp (Central
+# wall-clock "YYYY-mm-dd HH:MM:SS"), as mod_attendance saves them.
+.conf_cal_apply_entries <- function(cal, entries) {
+  if (is.null(cal) || nrow(cal) == 0 || is.null(entries) || nrow(entries) == 0) return(cal)
+  for (i in seq_len(nrow(entries))) {
+    d <- as.Date(as.character(entries$q_date[i]))
+    idx <- which(cal$Date == d)
+    if (length(idx) == 0 || is.na(d)) next
+    code <- as.character(entries$q_conference_type[i])
+
+    if (code == "3") {
+      if (!isTRUE(cal$afternoon_school[idx])) {
+        cal$afternoon_school[idx] <- TRUE
+        cal$detail_text[idx] <- paste0(cal$detail_text[idx], " \u00b7 Afternoon School logged")
+      }
+      next
+    }
+
+    ts   <- as.POSIXct(as.character(entries$q_entry_timestamp[i]), tz = "America/Chicago",
+                       format = "%Y-%m-%d %H:%M:%S")
+    live <- .conf_logged_live(d, as.Date(format(ts, "%Y-%m-%d")), ts, code)
+    old  <- cal$status[idx]
+
+    if (cal$expected[idx] == "None") {
+      if (old != "attended_unexpected") {
+        cal$status[idx] <- "attended_unexpected"
+        # Insert before any " · Afternoon School logged" suffix, matching the full build's order.
+        cal$detail_text[idx] <- sub("( \u00b7 Afternoon School logged)?$", " \u00b7 attendance logged\\1",
+                                    cal$detail_text[idx])
+      }
+    } else if (old != "attended_ontime") {
+      cal$status[idx] <- if (isTRUE(live)) "attended_ontime" else "attended_late"
+    }
+  }
+  cal
 }

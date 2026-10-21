@@ -16,7 +16,8 @@ mod_conference_calendar_server(
   amion_lo = AMION_LO_DEFAULT,
   crosswalk_r = NULL,
   amion_r = NULL,
-  expected_calendar_r = NULL
+  expected_calendar_r = NULL,
+  new_entries_r = NULL
 )
 }
 \arguments{
@@ -41,9 +42,18 @@ its own data.}
 expected-conference calendar — when supplied, skips the live Amion
 fetch entirely (questions_log stays live regardless). NULL (default):
 computed live from crosswalk_r/amion_r.}
+
+\item{new_entries_r}{Optional reactive returning attendance rows the
+caller saved this session (q_date, q_conference_type,
+q_entry_timestamp). They're applied on top of the already-built
+calendar, so a save recolors its tile instantly without re-pulling
+anything. NULL (default): calendar only reflects what was in REDCap
+when it was built.}
 }
 \value{
-\code{list(clicked = reactive(...))} — the reactive returns
+\code{list(clicked = reactive(...), data = reactive(...))} —
+\code{data} is the calendar table from
+\code{build_conference_calendar_data()}. The \code{clicked} reactive returns
 \code{NULL} until a day cell is clicked, then
 \code{list(date=, expected=, detail_text=)} for whichever day was
 last clicked. The caller owns what happens next (e.g. opening/

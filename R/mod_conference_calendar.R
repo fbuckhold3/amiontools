@@ -1,7 +1,8 @@
 # =============================================================================
 # Shiny module: redesigned attendance calendar (Fred, 2026-09-04) — weeks
-# as rows, 4-color status (green=attended on time, yellow=attended late,
-# red=missing, black=not expected/excused). Replaces the old
+# as rows, color by status (green=attended on time, yellow=attended late,
+# red=missing, black=not expected/excused, blue=logged on a not-expected
+# day; purple dot = Afternoon School logged, independent of tile color). Replaces the old
 # attended/no-entry/upcoming heatmap AND the raw "Your Attendance History"
 # table in mod_attendance.R — this calendar is the only day-level view now.
 #
@@ -24,6 +25,7 @@ NULL
   attended_late   = "#EF9F27",
   missing         = "#E24B4A",
   not_expected    = "#2C2C2A",
+  attended_unexpected = "#378ADD",
   pending_today   = "#FFFFFF"
 )
 
@@ -51,7 +53,15 @@ mod_conference_calendar_ui <- function(id) {
 #'   expected-conference calendar — when supplied, skips the live Amion
 #'   fetch entirely (questions_log stays live regardless). NULL (default):
 #'   computed live from crosswalk_r/amion_r.
-#' @return \code{list(clicked = reactive(...))} — the reactive returns
+#' @param new_entries_r Optional reactive returning attendance rows the
+#'   caller saved this session (q_date, q_conference_type,
+#'   q_entry_timestamp). They're applied on top of the already-built
+#'   calendar, so a save recolors its tile instantly without re-pulling
+#'   anything. NULL (default): calendar only reflects what was in REDCap
+#'   when it was built.
+#' @return \code{list(clicked = reactive(...), data = reactive(...))} —
+#'   \code{data} is the calendar table from
+#'   \code{build_conference_calendar_data()}. The \code{clicked} reactive returns
 #'   \code{NULL} until a day cell is clicked, then
 #'   \code{list(date=, expected=, detail_text=)} for whichever day was
 #'   last clicked. The caller owns what happens next (e.g. opening/
@@ -62,7 +72,8 @@ mod_conference_calendar_server <- function(id, resident_id, rdm_token, redcap_ur
                                            amion_lo = AMION_LO_DEFAULT,
                                            crosswalk_r = NULL,
                                            amion_r = NULL,
-                                           expected_calendar_r = NULL) {
+                                           expected_calendar_r = NULL,
+                                           new_entries_r = NULL) {
   shiny::moduleServer(id, function(input, output, session) {
 
     cal_data <- shiny::reactive({
@@ -76,8 +87,19 @@ mod_conference_calendar_server <- function(id, resident_id, rdm_token, redcap_ur
       )
     })
 
-    output$calendar <- shiny::renderUI({
+    # Built once per resident (the slow part: everyone's log + Amion);
+    # this session's saves are layered on top instantly.
+    shown_cal <- shiny::reactive({
       cal <- cal_data()
+      if (is.null(new_entries_r)) return(cal)
+      new_rows <- new_entries_r()
+      if (!is.null(new_rows) && nrow(new_rows) > 0)
+        new_rows <- new_rows[as.character(new_rows$record_id) == as.character(resident_id()), , drop = FALSE]
+      .conf_cal_apply_entries(cal, new_rows)
+    })
+
+    output$calendar <- shiny::renderUI({
+      cal <- shown_cal()
       if (is.null(cal) || nrow(cal) == 0) {
         return(shiny::tags$p(class = "text-muted small", "No Amion schedule data available for this resident."))
       }
@@ -103,8 +125,9 @@ mod_conference_calendar_server <- function(id, resident_id, rdm_token, redcap_ur
                                   click_input_id, gsub("'", "", payload))
             cell <- shiny::div(
               title = tip, onclick = onclick_js,
-              style = paste0("width:20px;height:20px;border-radius:4px;background:", bg,
-                             ";border:", border, ";cursor:pointer;")
+              style = paste0("position:relative;width:20px;height:20px;border-radius:4px;background:", bg,
+                             ";border:", border, ";cursor:pointer;"),
+              if (isTRUE(row$afternoon_school[1])) .conf_cal_as_dot(7)
             )
           }
           shiny::tags$td(style = "padding:2px;", cell)
@@ -133,6 +156,15 @@ mod_conference_calendar_server <- function(id, resident_id, rdm_token, redcap_ur
           paste("Your schedule excused you that day: elective, night float, emergency medicine,",
                 "time off/holiday, jeopardy, admin, or a VA afternoon clinic.",
                 "Also shown when there's no schedule data. Doesn't count against you.")),
+        .conf_cal_legend_item(.CONF_CAL_COLORS[["attended_unexpected"]], "Attended on a not-expected day",
+          "Your schedule didn't require conference that day, but attendance was logged."),
+        shiny::tagList(
+          shiny::div(style = "display:flex;align-items:center;gap:5px;white-space:nowrap;",
+            shiny::div(style = "position:relative;width:12px;height:12px;border-radius:3px;flex:none;background:#888780;",
+                       .conf_cal_as_dot(5)),
+            shiny::tags$strong(style = "font-weight:600;", "Afternoon School logged")),
+          shiny::div("Tracked separately; doesn't change the day's noon conference color.")
+        ),
         .conf_cal_legend_item(.CONF_CAL_COLORS[["pending_today"]], "Today",
           "Expected today, not logged yet.", border = "1px dashed #999")
       )
@@ -154,8 +186,15 @@ mod_conference_calendar_server <- function(id, resident_id, rdm_token, redcap_ur
            detail_text = if (length(parts) >= 3) parts[3] else "")
     })
 
-    list(clicked = clicked)
+    list(clicked = clicked, data = shown_cal)
   })
+}
+
+# Purple dot marking a day with Afternoon School logged (Fred, 2026-10-20) —
+# sits on top of the noon-conference tile color rather than replacing it.
+.conf_cal_as_dot <- function(size) {
+  shiny::div(style = paste0("position:absolute;right:1px;bottom:1px;width:", size, "px;height:", size,
+                            "px;border-radius:50%;background:#7F77DD;border:1.5px solid #fff;box-sizing:content-box;"))
 }
 
 # One legend row = two grid cells (swatch + label, then description), so
