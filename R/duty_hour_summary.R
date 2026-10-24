@@ -409,12 +409,17 @@ build_duty_hour_summary <- function(rdm_token,
     dplyr::mutate(week_start = as.Date(lubridate::floor_date(Date, "week", week_start = 7))) |>
     dplyr::group_by(record_id, name, Level, week_start) |>
     dplyr::summarise(
+      # Days_Worked reads the per-day Total_Hours, so it must come before
+      # Total_Hours is summed (summarise() sees the new weekly scalar from
+      # that line on — which counted every non-vacation day, days off
+      # included, until 2026-10-24).
+      Days_Worked = sum(Total_Hours > 0 & !is_vacation),
       Total_Hours = sum(Total_Hours),
       Home_Hours  = sum(Home_Hours),
-      Days_Worked = sum(Total_Hours > 0 & !is_vacation),
       all_vacation = all(is_vacation),
       .groups = "drop"
     ) |>
+    dplyr::relocate(Days_Worked, .after = Home_Hours) |>
     dplyr::arrange(record_id, week_start) |>
     dplyr::group_by(record_id) |>
     dplyr::mutate(
