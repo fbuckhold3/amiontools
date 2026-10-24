@@ -92,45 +92,6 @@ NULL
   if (mo >= 7) as.Date(paste0(yr, "-07-01")) else as.Date(paste0(yr - 1, "-07-01"))
 }
 
-# Live max `questions` repeat instance for one record, read right before a
-# save. Same idea as imslu.at.noon/global.R get_next_question_instance()
-# (lean single-record read), using the forms/fields request shape of
-# .peer_next_instance(). Returns 0L when the record has no questions rows,
-# and NA_integer_ when REDCap can't be read — callers must treat NA as
-# "don't write", since guessing an instance can overwrite an existing entry.
-.att_live_max_question_instance <- function(record_id, redcap_url, rdm_token) {
-  tryCatch({
-    resp <- httr::POST(
-      redcap_url,
-      body = list(
-        token = rdm_token, content = "record", action = "export",
-        format = "json", type = "flat",
-        records     = as.character(record_id),
-        `forms[0]`  = "questions",
-        `fields[0]` = "record_id",
-        rawOrLabel = "raw", rawOrLabelHeaders = "raw",
-        exportCheckboxLabel = "false", exportSurveyFields = "false",
-        exportDataAccessGroups = "false", returnFormat = "json"
-      ),
-      encode = "form", httr::timeout(15)
-    )
-    if (httr::status_code(resp) != 200) return(NA_integer_)
-    dat <- jsonlite::fromJSON(httr::content(resp, "text", encoding = "UTF-8"))
-    # "[]" parses to an empty list (no rows); an {"error": ...} body parses
-    # to a named list — the latter is a failure, not "zero instances".
-    if (!is.data.frame(dat)) return(if (length(dat) == 0) 0L else NA_integer_)
-    if (nrow(dat) == 0 || !"redcap_repeat_instrument" %in% names(dat)) return(0L)
-    q <- dat[!is.na(dat$redcap_repeat_instrument) &
-               dat$redcap_repeat_instrument == "questions", , drop = FALSE]
-    inst <- suppressWarnings(as.integer(q$redcap_repeat_instance))
-    inst <- inst[!is.na(inst)]
-    if (length(inst) == 0) 0L else max(inst)
-  }, error = function(e) {
-    message("[mod_attendance] live instance lookup failed: ", conditionMessage(e))
-    NA_integer_
-  })
-}
-
 #' @export
 mod_attendance_ui <- function(id) {
   ns <- NS(id)
@@ -342,43 +303,28 @@ mod_attendance_server <- function(id, rdm_data, resident_id, rdm_token, redcap_u
       }
       offday_pending(FALSE)
 
-      fields <- list(
-        q_date              = format(d, "%Y-%m-%d"),
-        q_conference_type   = conf,
-        q_rotation          = if (needs_rotation) rot else "",
-        q_answer            = "",
-        # Central wall-clock time, matching at.noon's CONFERENCE_TIMEZONE —
-        # Sys.time() alone uses the server's zone (UTC on Connect), which
-        # would skew the calendar's "logged during conference" window check.
-        q_entry_timestamp   = format(Sys.time(), "%Y-%m-%d %H:%M:%S", tz = "America/Chicago")
-      )
-
-      # Next instance comes from a live REDCap read, not just display_data():
-      # that's login-time data, so an at.noon check-in (or another tab) made
-      # since login would otherwise get its instance reused — and
-      # rc_save_instance() writes with overwriteBehavior = "overwrite".
-      # Cached max is kept as a floor for rows saved earlier this session.
-      live_max <- .att_live_max_question_instance(resident_id(), redcap_url, rdm_token)
-      if (is.na(live_max)) {
-        ss$save <- list(success = FALSE,
-          message = "Couldn't reach REDCap to confirm — nothing saved. Please try again.")
-        return()
-      }
+      # save_attendance_entry() reads the next instance live (display_data()
+      # is login-time data, so an at.noon check-in made since login would
+      # otherwise get its instance reused). Cached max is passed as a floor
+      # for rows saved earlier this session.
       df <- display_data()
       cached_max <- if (!is.null(df) && nrow(df) > 0)
         suppressWarnings(max(as.integer(df$redcap_repeat_instance), na.rm = TRUE)) else 0L
       if (!is.finite(cached_max)) cached_max <- 0L
-      inst <- as.integer(max(live_max, cached_max)) + 1L
 
-      result <- gmed::rc_save_instance(resident_id(), "questions", inst, fields,
-                                       redcap_url = redcap_url, rdm_token = rdm_token)
+      result <- save_attendance_entry(
+        record_id = resident_id(), date = d, conference_type = conf,
+        rotation = if (needs_rotation) rot else "",
+        rdm_token = rdm_token, redcap_url = redcap_url, min_instance = cached_max)
       ss$save <- result
 
       if (isTRUE(result$success)) {
+        fields <- result$fields
+        fields$questions_complete <- NULL
         new_row <- as.data.frame(
           c(list(record_id = as.character(resident_id()),
                  redcap_repeat_instrument = "questions",
-                 redcap_repeat_instance   = as.character(inst)),
+                 redcap_repeat_instance   = as.character(result$instance)),
             fields),
           stringsAsFactors = FALSE, check.names = FALSE)
         local_new_rows(rbind(local_new_rows(), new_row))

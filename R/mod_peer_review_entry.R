@@ -127,7 +127,7 @@ NULL
 # REDCap can't be read (non-200, error, or an {"error": ...} body) — callers
 # must treat NA as "don't write", since .peer_submit() uses overwrite mode
 # and a guessed instance could clobber an existing review. Same contract as
-# .att_live_max_question_instance() in mod_attendance.R.
+# .att_live_max_question_instance() in attendance_entry.R.
 .peer_next_instance <- function(target_record_id, redcap_url, rdm_token) {
   tryCatch({
     resp <- httr::POST(

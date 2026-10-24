@@ -1,6 +1,6 @@
 Package: amiontools
 Title: Shared Amion Schedule Fetch, Classification, and Crosswalk Tools
-Version: 0.0.1
+Version: 0.1.0
 Authors@R:
     person("Fred", "Buckhold", , "fbuckhold3@icloud.com", role = c("aut", "cre"))
 Description: Shared functions for pulling resident schedule data from
