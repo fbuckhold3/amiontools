@@ -9,7 +9,9 @@ summarise_activity(
   activity,
   period = c("week", "month", "ay"),
   by = c("resident", "level", "program"),
-  through = Sys.Date()
+  through = Sys.Date(),
+  days_per_week_target = 5.5,
+  days_off_limit = 6
 )
 }
 \arguments{
@@ -23,6 +25,9 @@ summarise_activity(
 always pre-scheduled in Amion, so leaving this at today is what keeps
 "this week" from meaning late June. Pass \code{NULL} to keep every day
 (e.g. anticipated hours).}
+
+\item{days_per_week_target, days_off_limit}{Days-worked thresholds, as in
+\code{build_duty_hour_summary()} (defaults 5.5 and 6).}
 }
 \value{
 A tibble with one row per group and period (\code{period_start}).
@@ -34,14 +39,17 @@ conference wasn't expected), \code{afternoon_school_days},
 \code{weeks}, \code{avg_weekly_hours}, \code{days_confirmed},
 \code{days_unconfirmed} (still on the Amion default),
 \code{days_needs_entry}; for \code{period = "week"} also
-\code{rolling_4wk_avg_hours} and \code{flag_80h} (same 4-week window as
-\code{build_duty_hour_summary()}). For \code{by = "level"} /
+\code{rolling_4wk_avg_hours}, \code{flag_80h},
+\code{rolling_4wk_days_per_week}, \code{flag_days_over_target} (> 5.5)
+and \code{flag_days_off_violation} (> 6, fewer than one day off in
+seven) — same 4-week windows as \code{build_duty_hour_summary()}. For \code{by = "level"} /
 \code{"program"}: \code{n_residents}, the summed counts,
 \code{conf_rate} pooled across residents, \code{avg_resident_conf_rate}
 (mean of per-resident rates, as in
 \code{build_attendance_reconciliation()$class_avg_wide}),
 \code{avg_weekly_hours} (mean across residents), and for weeks
-\code{n_flag_80h}.
+\code{n_flag_80h}, \code{n_flag_days_over_target},
+\code{n_flag_days_off_violation}.
 }
 \description{
 Roll up \code{build_resident_activity()} by period, per resident, per

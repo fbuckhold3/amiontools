@@ -38,7 +38,7 @@ NULL
         any(source == "resident_entered")      ~ "entered",
         any(source == "resident_confirmed")    ~ "confirmed",
         any(source == "resident_entry_needed") ~ "needs_entry",
-        all(source %in% c("vacation", "day_off", "jeopardy")) ~ "off",
+        all(source %in% .DUTY_OFF_SOURCES)     ~ "off",
         TRUE                                   ~ "amion_default"
       ),
       .groups = "drop"
@@ -212,6 +212,8 @@ build_resident_activity <- function(rdm_token,
 #'   always pre-scheduled in Amion, so leaving this at today is what keeps
 #'   "this week" from meaning late June. Pass \code{NULL} to keep every day
 #'   (e.g. anticipated hours).
+#' @param days_per_week_target,days_off_limit Days-worked thresholds, as in
+#'   \code{build_duty_hour_summary()} (defaults 5.5 and 6).
 #' @return A tibble with one row per group and period (\code{period_start}).
 #'   Per resident: \code{days}, \code{conf_expected_days},
 #'   \code{conf_attended_days}, \code{conf_rate} (NA when nothing was
@@ -221,19 +223,24 @@ build_resident_activity <- function(rdm_token,
 #'   \code{weeks}, \code{avg_weekly_hours}, \code{days_confirmed},
 #'   \code{days_unconfirmed} (still on the Amion default),
 #'   \code{days_needs_entry}; for \code{period = "week"} also
-#'   \code{rolling_4wk_avg_hours} and \code{flag_80h} (same 4-week window as
-#'   \code{build_duty_hour_summary()}). For \code{by = "level"} /
+#'   \code{rolling_4wk_avg_hours}, \code{flag_80h},
+#'   \code{rolling_4wk_days_per_week}, \code{flag_days_over_target} (> 5.5)
+#'   and \code{flag_days_off_violation} (> 6, fewer than one day off in
+#'   seven) — same 4-week windows as \code{build_duty_hour_summary()}. For \code{by = "level"} /
 #'   \code{"program"}: \code{n_residents}, the summed counts,
 #'   \code{conf_rate} pooled across residents, \code{avg_resident_conf_rate}
 #'   (mean of per-resident rates, as in
 #'   \code{build_attendance_reconciliation()$class_avg_wide}),
 #'   \code{avg_weekly_hours} (mean across residents), and for weeks
-#'   \code{n_flag_80h}.
+#'   \code{n_flag_80h}, \code{n_flag_days_over_target},
+#'   \code{n_flag_days_off_violation}.
 #' @export
 summarise_activity <- function(activity,
                                period = c("week", "month", "ay"),
                                by = c("resident", "level", "program"),
-                               through = Sys.Date()) {
+                               through = Sys.Date(),
+                               days_per_week_target = 5.5,
+                               days_off_limit = 6) {
   period <- match.arg(period)
   by     <- match.arg(by)
 
@@ -262,6 +269,7 @@ summarise_activity <- function(activity,
       # scalar from that line on).
       days_worked                 = sum(!is.na(duty_hours) & duty_hours > 0 & !is_vacation),
       has_duty_data               = any(!is.na(duty_hours)),
+      all_vacation                = all(is_vacation[!is.na(duty_hours)]),
       duty_hours                  = sum(duty_hours, na.rm = TRUE),
       home_hours                  = sum(home_hours, na.rm = TRUE),
       weeks                       = dplyr::n_distinct(week_start),
@@ -279,20 +287,33 @@ summarise_activity <- function(activity,
     # Mirrors build_duty_hour_summary(): the 4-week window runs over weeks
     # that have duty data, so a week with nothing countable yet doesn't
     # count as a 0-hour week.
+    # Days-off rule: same window, skipping all-vacation weeks inside it.
+    roll <- function(x, has, skip = rep(FALSE, length(x))) {
+      idx <- which(has)
+      r <- rep(NA_real_, length(x))
+      for (k in seq_along(idx)) {
+        w <- idx[max(1, k - 3):k]
+        w <- w[!skip[w]]
+        if (length(w)) r[idx[k]] <- mean(x[w])
+      }
+      r
+    }
     res <- res |>
       dplyr::arrange(record_id, period_start) |>
       dplyr::group_by(record_id) |>
-      dplyr::mutate(rolling_4wk_avg_hours = {
-        h <- ifelse(has_duty_data, duty_hours, NA_real_)
-        idx <- which(has_duty_data)
-        r <- rep(NA_real_, length(h))
-        for (k in seq_along(idx)) r[idx[k]] <- mean(h[idx[max(1, k - 3):k]])
-        r
-      }) |>
+      dplyr::mutate(
+        rolling_4wk_avg_hours     = roll(duty_hours, has_duty_data),
+        rolling_4wk_days_per_week = roll(days_worked, has_duty_data, all_vacation)
+      ) |>
       dplyr::ungroup() |>
-      dplyr::mutate(flag_80h = !is.na(rolling_4wk_avg_hours) & rolling_4wk_avg_hours > 80)
+      dplyr::mutate(
+        flag_80h                = !is.na(rolling_4wk_avg_hours) & rolling_4wk_avg_hours > 80,
+        flag_days_over_target   = !is.na(rolling_4wk_days_per_week) & rolling_4wk_days_per_week > days_per_week_target,
+        flag_days_off_violation = !is.na(rolling_4wk_days_per_week) & rolling_4wk_days_per_week > days_off_limit
+      )
   }
   res$has_duty_data <- NULL
+  res$all_vacation  <- NULL
 
   if (by == "resident") return(res)
 
@@ -312,10 +333,16 @@ summarise_activity <- function(activity,
       days_unconfirmed            = sum(days_unconfirmed),
       days_needs_entry            = sum(days_needs_entry),
       n_flag_80h                  = if ("flag_80h" %in% names(res)) sum(flag_80h) else NA_integer_,
+      n_flag_days_over_target     = if ("flag_80h" %in% names(res)) sum(flag_days_over_target) else NA_integer_,
+      n_flag_days_off_violation   = if ("flag_80h" %in% names(res)) sum(flag_days_off_violation) else NA_integer_,
       .groups = "drop"
     ) |>
     dplyr::mutate(conf_rate = ifelse(conf_expected_days > 0, conf_attended_days / conf_expected_days, NA_real_))
   agg$avg_resident_conf_rate[is.nan(agg$avg_resident_conf_rate)] <- NA_real_
-  if (period != "week") agg$n_flag_80h <- NULL
+  if (period != "week") {
+    agg$n_flag_80h <- NULL
+    agg$n_flag_days_over_target <- NULL
+    agg$n_flag_days_off_violation <- NULL
+  }
   agg
 }

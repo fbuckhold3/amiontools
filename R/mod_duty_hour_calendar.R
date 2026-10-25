@@ -134,7 +134,7 @@ mod_duty_hour_calendar_server <- function(id, resident_id, entries_r, amion_bloc
                             verified = FALSE, needs_entry = FALSE, Hours = NA_real_,
                             category_label = NA_character_, stringsAsFactors = FALSE))
         }
-        is_off <- nrow(drows) > 0 && all(drows$source %in% c("vacation", "day_off", "jeopardy"))
+        is_off <- nrow(drows) > 0 && all(drows$source %in% .DUTY_OFF_SOURCES)
         # dominant category = most hours that day; ties/all-NA -> first row's category
         cat_label <- if (is_off) "Time Off/Holiday"
                      else if (nrow(drows) == 0) "Confirmed"  # verified but not in amion_blocks (shouldn't normally happen)

@@ -52,8 +52,9 @@ A list with:
 block_start/block_end (HHMM character, NA where Hours is 0/unknown),
 block_start_dt/block_end_dt (POSIXct, NA where unknown), source (one
 of "default", "call", "c_session", "default_am"/"default_pm"
-(synthetic AM/PM fallback), "vacation", "jeopardy",
-"resident_entry_needed", "unmapped_category")
+(synthetic AM/PM fallback), "vacation", "jeopardy", "weekend_off"
+(Sat/Sun on a weekdays_only rotation), "resident_entry_needed",
+"unmapped_category")
 \item educational_detail: the c-type "Educational" session rows
 (Afternoon School, ITE, MKSAP, etc.) — carved OUT of duty_blocks'
 hour totals on purpose, see file header in duty_hour_defaults.R;

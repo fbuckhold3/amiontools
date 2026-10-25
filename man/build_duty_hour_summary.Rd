@@ -12,8 +12,11 @@ the rolling average is, per Fred 2026-09-07)
 \item rest_gap_flags: a "hard" (< hard_gap_hours) or "soft" (< soft_gap_hours)
 flagged transition between two known-time duty blocks, per the
 exemption rule in .SHORT_FLEXIBLE_CATEGORIES above
-\item flag_low_days: cumulative average days-worked-per-week (vacation
-weeks excluded) below days_per_week_target
+\item flag_days_over_target / flag_days_off_violation: rolling 4-week
+average days worked per week (all-vacation weeks excluded) above
+days_per_week_target (program warning) / days_off_limit (fewer than
+one day off in seven). Replaced flag_low_days 2026-10-25 — Fred's
+concern is too many days worked, not too few.
 }}
 \usage{
 build_duty_hour_summary(
@@ -29,6 +32,7 @@ build_duty_hour_summary(
   hard_gap_hours = 2,
   soft_gap_hours = 10,
   days_per_week_target = 5.5,
+  days_off_limit = 6,
   entries = NULL
 )
 }
@@ -64,8 +68,11 @@ Default 2 (hard) / 10 (soft) per Fred (2026-09-07, picked as the
 midpoint of his stated "1-3 hour" range) — easy to retune once real
 data is reviewed.}
 
-\item{days_per_week_target}{Reference line for the days-worked-per-week
-metric (default 5.5, per Fred).}
+\item{days_per_week_target}{Program warning line for days worked per
+week (default 5.5, per Fred).}
+
+\item{days_off_limit}{Days-worked-per-week average above which a
+resident has fewer than one day off in seven (default 6).}
 
 \item{entries}{Optional pre-fetched \code{pull_duty_hour_log()} result —
 pass this to overlay resident-confirmed/entered hours over the Amion
@@ -82,7 +89,9 @@ duty_blocks' "default"/"call" rows on a real day off (see
 build_team_summary()$detail_off) overridden to Hours=0/source="day_off"
 \item daily: record_id/name/Level/Date/Total_Hours/is_vacation
 \item weekly: + week_start/Total_Hours/Days_Worked/rolling_4wk_avg_hours/
-flag_80h/rolling_days_per_week/flag_low_days
+flag_80h/rolling_days_per_week (cumulative since July)/
+rolling_4wk_days_per_week/flag_days_over_target/
+flag_days_off_violation
 \item weekly_by_category: record_id/name/Level/week_start/super_category/
 verified/needs_entry/Hours/Days — the same weekly totals broken out
 by the 8 SUPER_CATEGORY_MAP buckets and by verified status (TRUE

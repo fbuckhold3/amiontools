@@ -51,6 +51,12 @@ NULL
 #' data (two separate half-day sessions, not one span).
 #' `resident_entered = TRUE` means no default exists at all — Amion doesn't
 #' predict these hours, the resident must enter them (Phase 2+).
+#' `weekdays_only = TRUE` (Fred, 2026-10-25): the rotation doesn't work
+#' weekends. Amion still lists the rotation on every calendar day, so
+#' without this a Saturday/Sunday got a full default block — counting as a
+#' worked day and adding 8-9h to the week. On a weekend these get 0h
+#' (source "weekend_off") unless Amion shows a real same-category session
+#' or a call tag that day.
 #' @export
 DUTY_HOUR_DEFAULT_MAP <- data.frame(
   category         = c("SLUH Inpatient", "ICU", "Night Float", "VA Inpatient",
@@ -88,6 +94,11 @@ DUTY_HOUR_DEFAULT_MAP <- data.frame(
                        FALSE, FALSE, FALSE, FALSE, FALSE,
                        FALSE,
                        TRUE, TRUE, TRUE, TRUE),
+  weekdays_only    = c(FALSE, FALSE, FALSE, FALSE,
+                       TRUE, TRUE,
+                       TRUE, TRUE, TRUE, TRUE, TRUE,
+                       TRUE,
+                       FALSE, FALSE, FALSE, FALSE),
   stringsAsFactors = FALSE
 )
 

@@ -22,4 +22,10 @@ AM (0800-1200) + PM (1300-1700) pair (8h) rather than one continuous
 data (two separate half-day sessions, not one span).
 \code{resident_entered = TRUE} means no default exists at all — Amion doesn't
 predict these hours, the resident must enter them (Phase 2+).
+\code{weekdays_only = TRUE} (Fred, 2026-10-25): the rotation doesn't work
+weekends. Amion still lists the rotation on every calendar day, so
+without this a Saturday/Sunday got a full default block — counting as a
+worked day and adding 8-9h to the week. On a weekend these get 0h
+(source "weekend_off") unless Amion shows a real same-category session
+or a call tag that day.
 }

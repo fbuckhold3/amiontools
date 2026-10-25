@@ -283,14 +283,21 @@ mod_duty_hour_summary_server <- function(id, resident_id, rdm_token, redcap_url,
     output$flags <- shiny::renderUI({
       shiny::req(nrow(resident_weekly_raw()) > 0)
       wk_raw <- resident_weekly_raw()
-      latest <- wk_raw[nrow(wk_raw), ]
+      # weekly runs through June (Amion pre-builds the year) — "current" is
+      # the latest week that has started, not the last row.
+      past   <- wk_raw[wk_raw$week_start <= Sys.Date(), , drop = FALSE]
+      shiny::validate(shiny::need(nrow(past) > 0, "No duty-hour weeks yet this academic year."))
+      latest <- past[nrow(past), ]
       gaps   <- resident_gaps()
 
       items <- list(
         shiny::p(
           class = "small",
-          sprintf("Current 4-week average: %.1f hours/week. Cumulative days worked/week (excl. vacation): %.1f (target 5.5).",
-                 latest$rolling_4wk_avg_hours, latest$rolling_days_per_week)
+          sprintf(paste0("Current 4-week average: %.1f hours/week, %.1f days worked/week ",
+                         "(warning above 5.5; above 6 means fewer than 1 day off in 7). ",
+                         "Cumulative since July (excl. vacation): %.1f days/week."),
+                 latest$rolling_4wk_avg_hours, latest$rolling_4wk_days_per_week,
+                 latest$rolling_days_per_week)
         )
       )
 
@@ -300,10 +307,15 @@ mod_duty_hour_summary_server <- function(id, resident_id, rdm_token, redcap_url,
           "⚠ 4-week rolling average is over 80 hours/week."
         )
       }
-      if (isTRUE(latest$flag_low_days)) {
+      if (isTRUE(latest$flag_days_off_violation)) {
+        items[[length(items) + 1]] <- shiny::div(
+          class = "small", style = "color:#c0392b; font-weight:600;",
+          "⚠ 4-week average is over 6 days worked/week — fewer than 1 day off in 7."
+        )
+      } else if (isTRUE(latest$flag_days_over_target)) {
         items[[length(items) + 1]] <- shiny::div(
           class = "small", style = "color:#b8860b;",
-          "⚠ Average days worked/week is below the 5.5 target."
+          "⚠ 4-week average is over 5.5 days worked/week."
         )
       }
       if (nrow(gaps) > 0) {
@@ -323,15 +335,18 @@ mod_duty_hour_summary_server <- function(id, resident_id, rdm_token, redcap_url,
       shiny::req(nrow(resident_weekly_raw()) > 0)
       tbl <- resident_weekly() |>
         dplyr::select(week_start, Total_Hours, Home_Hours, Days_Worked, rolling_4wk_avg_hours,
-                      flag_80h, rolling_days_per_week, flag_low_days) |>
+                      flag_80h, rolling_4wk_days_per_week, flag_days_over_target,
+                      flag_days_off_violation, rolling_days_per_week) |>
         dplyr::arrange(dplyr::desc(week_start))
       DT::datatable(
         tbl, rownames = FALSE,
         colnames = c("Week of", "Hours", "At-Home Hours", "Days Worked", "4wk Avg Hours",
-                    "80h Flag", "Days/wk Avg", "Low-Days Flag"),
+                    "80h Flag", "4wk Avg Days/wk", "Over 5.5 Days", "Under 1 Day Off in 7",
+                    "Cumulative Days/wk"),
         options = list(pageLength = 10, order = list(list(0, "desc")))
       ) |>
-        DT::formatRound(columns = c("Total_Hours", "Home_Hours", "rolling_4wk_avg_hours", "rolling_days_per_week"), digits = 1)
+        DT::formatRound(columns = c("Total_Hours", "Home_Hours", "rolling_4wk_avg_hours",
+                                   "rolling_4wk_days_per_week", "rolling_days_per_week"), digits = 1)
     })
   })
 }

@@ -30,6 +30,10 @@ NULL
 
 .KNOWN_ZERO_HOUR_CATEGORIES <- c("Time Off/Holiday", "Jeopardy")
 
+# duty_blocks sources that mean "not working that day" — one list, used by
+# the summary's chart coloring, the calendar, and build_resident_activity().
+.DUTY_OFF_SOURCES <- c("vacation", "day_off", "jeopardy", "weekend_off")
+
 #' HHMM (character/integer) + Date -> POSIXct, vectorized, NA-safe.
 #' @keywords internal
 .dt_from_hhmm <- function(date, hhmm) {
@@ -53,8 +57,9 @@ NULL
 #'     block_start/block_end (HHMM character, NA where Hours is 0/unknown),
 #'     block_start_dt/block_end_dt (POSIXct, NA where unknown), source (one
 #'     of "default", "call", "c_session", "default_am"/"default_pm"
-#'     (synthetic AM/PM fallback), "vacation", "jeopardy",
-#'     "resident_entry_needed", "unmapped_category")
+#'     (synthetic AM/PM fallback), "vacation", "jeopardy", "weekend_off"
+#'     (Sat/Sun on a weekdays_only rotation), "resident_entry_needed",
+#'     "unmapped_category")
 #'   - educational_detail: the c-type "Educational" session rows
 #'     (Afternoon School, ITE, MKSAP, etc.) — carved OUT of duty_blocks'
 #'     hour totals on purpose, see file header in duty_hour_defaults.R;
@@ -158,6 +163,21 @@ build_duty_hour_blocks <- function(rdm_token,
                   source = "resident_entry_needed") |>
     dplyr::select(record_id, name, Level, Date, category, Hours, block_start, block_end, source)
 
+  # -- weekend on a weekday-only rotation (Fred, 2026-10-25) ----------------
+  # Amion lists the rotation every calendar day; these rotations don't work
+  # weekends, so Sat/Sun is 0h unless Amion shows a call tag or a real
+  # same-category session that day (those keep their normal treatment).
+  is_weekend <- format(remaining$Date, "%u") %in% c("6", "7")
+  weekend_off <- remaining[is_weekend, , drop = FALSE] |>
+    dplyr::filter(!is.na(resident_entered), !resident_entered, weekdays_only, !has_call) |>
+    dplyr::anti_join(c_sessions, by = c("record_id", "name", "Level", "Date", "category")) |>
+    dplyr::distinct(record_id, name, Level, Date, category)
+  remaining <- remaining |>
+    dplyr::anti_join(weekend_off, by = c("record_id", "name", "Level", "Date", "category"))
+  weekend_off <- weekend_off |>
+    dplyr::mutate(Hours = 0, block_start = NA_character_, block_end = NA_character_,
+                  source = "weekend_off")
+
   fixed <- remaining |>
     dplyr::filter(!is.na(resident_entered), !resident_entered, !uses_c_override) |>
     dplyr::mutate(
@@ -198,7 +218,7 @@ build_duty_hour_blocks <- function(rdm_token,
 
   duty_blocks <- dplyr::bind_rows(
     zero_hour, unmapped_category, entry_needed, fixed,
-    matched_sessions, synthetic_am, synthetic_pm
+    matched_sessions, synthetic_am, synthetic_pm, weekend_off
   ) |>
     dplyr::arrange(record_id, Date)
 
@@ -279,8 +299,11 @@ build_duty_hour_blocks <- function(rdm_token,
 #'   - rest_gap_flags: a "hard" (< hard_gap_hours) or "soft" (< soft_gap_hours)
 #'     flagged transition between two known-time duty blocks, per the
 #'     exemption rule in .SHORT_FLEXIBLE_CATEGORIES above
-#'   - flag_low_days: cumulative average days-worked-per-week (vacation
-#'     weeks excluded) below days_per_week_target
+#'   - flag_days_over_target / flag_days_off_violation: rolling 4-week
+#'     average days worked per week (all-vacation weeks excluded) above
+#'     days_per_week_target (program warning) / days_off_limit (fewer than
+#'     one day off in seven). Replaced flag_low_days 2026-10-25 — Fred's
+#'     concern is too many days worked, not too few.
 #'
 #' Moonlighting and at-home chart-review time are NOT included — see file
 #' header.
@@ -290,8 +313,10 @@ build_duty_hour_blocks <- function(rdm_token,
 #'   Default 2 (hard) / 10 (soft) per Fred (2026-09-07, picked as the
 #'   midpoint of his stated "1-3 hour" range) — easy to retune once real
 #'   data is reviewed.
-#' @param days_per_week_target Reference line for the days-worked-per-week
-#'   metric (default 5.5, per Fred).
+#' @param days_per_week_target Program warning line for days worked per
+#'   week (default 5.5, per Fred).
+#' @param days_off_limit Days-worked-per-week average above which a
+#'   resident has fewer than one day off in seven (default 6).
 #' @param entries Optional pre-fetched \code{pull_duty_hour_log()} result —
 #'   pass this to overlay resident-confirmed/entered hours over the Amion
 #'   defaults (see duty_hour_entries.R). NULL (default) fetches internally
@@ -304,7 +329,9 @@ build_duty_hour_blocks <- function(rdm_token,
 #'     build_team_summary()$detail_off) overridden to Hours=0/source="day_off"
 #'   - daily: record_id/name/Level/Date/Total_Hours/is_vacation
 #'   - weekly: + week_start/Total_Hours/Days_Worked/rolling_4wk_avg_hours/
-#'     flag_80h/rolling_days_per_week/flag_low_days
+#'     flag_80h/rolling_days_per_week (cumulative since July)/
+#'     rolling_4wk_days_per_week/flag_days_over_target/
+#'     flag_days_off_violation
 #'   - weekly_by_category: record_id/name/Level/week_start/super_category/
 #'     verified/needs_entry/Hours/Days — the same weekly totals broken out
 #'     by the 8 SUPER_CATEGORY_MAP buckets and by verified status (TRUE
@@ -334,6 +361,7 @@ build_duty_hour_summary <- function(rdm_token,
                                     hard_gap_hours = 2,
                                     soft_gap_hours = 10,
                                     days_per_week_target = 5.5,
+                                    days_off_limit = 6,
                                     entries = NULL) {
 
   if (is.null(crosswalk)) {
@@ -440,7 +468,21 @@ build_duty_hour_summary <- function(rdm_token,
           mean(Days_Worked[idx])
         })
       },
-      flag_low_days = rolling_days_per_week < days_per_week_target
+      # Days-off rule (Fred, 2026-10-25): the same 4-week window as the
+      # hours average, skipping all-vacation weeks inside it.
+      rolling_4wk_days_per_week = {
+        keep <- !all_vacation
+        sapply(seq_along(Days_Worked), function(i) {
+          idx <- max(1, i - 3):i
+          idx <- idx[keep[idx]]
+          if (length(idx) == 0) return(NA_real_)
+          mean(Days_Worked[idx])
+        })
+      },
+      flag_days_over_target   = !is.na(rolling_4wk_days_per_week) &
+                                  rolling_4wk_days_per_week > days_per_week_target,
+      flag_days_off_violation = !is.na(rolling_4wk_days_per_week) &
+                                  rolling_4wk_days_per_week > days_off_limit
     ) |>
     dplyr::ungroup()
 
@@ -467,7 +509,7 @@ build_duty_hour_summary <- function(rdm_token,
   # earlier and untouched by this block) — `Days` (the real day count)
   # rides along so the chart can show "N day(s)" in hover rather than a
   # misleading "8.0 hours".
-  cat_for_color <- ifelse(duty_blocks$source %in% c("vacation", "day_off", "jeopardy"),
+  cat_for_color <- ifelse(duty_blocks$source %in% .DUTY_OFF_SOURCES,
                           "Time Off/Holiday", duty_blocks$category)
   super_cat <- classify_super_category(cat_for_color)
   super_cat[super_cat == "UNMAPPED"] <- "Other"
