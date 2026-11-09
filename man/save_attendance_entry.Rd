@@ -12,16 +12,18 @@ save_attendance_entry(
   answer = NULL,
   rdm_token,
   redcap_url,
-  min_instance = 0L
+  min_instance = 0L,
+  attended = TRUE,
+  absence_reason = NULL
 )
 }
 \arguments{
 \item{record_id}{RDM record_id.}
 
-\item{date}{Date the resident attended (Date, or "YYYY-MM-DD").}
+\item{date}{Date of the conference (Date, or "YYYY-MM-DD").}
 
 \item{conference_type}{Raw \code{q_conference_type} code ("1"-"5";
-"3" = Afternoon School).}
+"3" = Afternoon School). Ignored when \code{attended = FALSE}.}
 
 \item{rotation}{Raw \code{q_rotation} code, or NULL/"" when the
 conference type doesn't ask for one.}
@@ -35,6 +37,11 @@ caller's choice).}
 \item{min_instance}{Floor for the instance number, for callers that may
 have saved rows this session that a read could lag behind. The next
 instance is \code{max(live max, min_instance) + 1}.}
+
+\item{attended}{\code{TRUE} (default) for attendance; \code{FALSE} for a
+"did not attend" entry, which requires \code{absence_reason}.}
+
+\item{absence_reason}{Why the resident did not attend.}
 }
 \value{
 A list: \code{success} (logical), \code{instance},
@@ -50,4 +57,11 @@ entry is written the same way. Validation of the resident-facing rules
 (no future dates, the off-day "Save anyway?" prompt, which conferences
 need a rotation) stays in the calling UI — this function only refuses
 input that can't be written at all.
+}
+\details{
+A "did not attend" entry (\code{attended = FALSE}) is written with a
+blank \code{q_conference_type}. \code{pull_questions_log()} already
+drops blank-type rows, so these can never count as attendance, including
+in apps still pinned to an older amiontools. Read them with
+\code{pull_not_attended_log()}.
 }

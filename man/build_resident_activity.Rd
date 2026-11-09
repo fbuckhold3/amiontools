@@ -17,7 +17,8 @@ build_resident_activity(
   amion = NULL,
   questions_log = NULL,
   duty_entries = NULL,
-  record_ids = NULL
+  record_ids = NULL,
+  not_attended_log = NULL
 )
 }
 \arguments{
@@ -69,6 +70,8 @@ Off_Status, Call_Status, Clinic_Sessions}{Schedule, from
 \item{conf_logged}{Any noon-conference entry that day (Afternoon
 School excluded).}
 \item{conf_attended}{Expected AND logged.}
+\item{conf_not_attended}{Expected, not logged as attended, and
+marked "did not attend".}
 \item{conf_logged_types}{Raw q_conference_type code(s) logged, or NA.}
 \item{afternoon_school}{Afternoon School ("3") logged that day.}
 \item{duty_status}{"confirmed", "entered", "amion_default",

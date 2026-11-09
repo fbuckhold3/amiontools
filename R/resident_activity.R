@@ -78,6 +78,8 @@ NULL
 #'     \item{conf_logged}{Any noon-conference entry that day (Afternoon
 #'       School excluded).}
 #'     \item{conf_attended}{Expected AND logged.}
+#'     \item{conf_not_attended}{Expected, not logged as attended, and
+#'       marked "did not attend".}
 #'     \item{conf_logged_types}{Raw q_conference_type code(s) logged, or NA.}
 #'     \item{afternoon_school}{Afternoon School ("3") logged that day.}
 #'     \item{duty_status}{"confirmed", "entered", "amion_default",
@@ -98,7 +100,8 @@ build_resident_activity <- function(rdm_token,
                                     amion = NULL,
                                     questions_log = NULL,
                                     duty_entries = NULL,
-                                    record_ids = NULL) {
+                                    record_ids = NULL,
+                                    not_attended_log = NULL) {
 
   if (is.null(crosswalk)) {
     crosswalk <- get_amion_crosswalk(rdm_token, redcap_url, verified_only = verified_only)
@@ -108,6 +111,9 @@ build_resident_activity <- function(rdm_token,
   }
   if (is.null(questions_log)) {
     questions_log <- pull_questions_log(rdm_token, redcap_url)
+  }
+  if (is.null(not_attended_log)) {
+    not_attended_log <- pull_not_attended_log(rdm_token, redcap_url)
   }
   if (is.null(duty_entries)) {
     duty_entries <- pull_duty_hour_log(rdm_token = rdm_token, redcap_url = redcap_url)
@@ -156,6 +162,11 @@ build_resident_activity <- function(rdm_token,
     dplyr::distinct(record_id, Date) |>
     dplyr::mutate(afternoon_school = TRUE)
 
+  not_attended_days <- not_attended_log[, c("record_id", "Date"), drop = FALSE] |>
+    dplyr::mutate(record_id = as.character(record_id)) |>
+    dplyr::distinct() |>
+    dplyr::mutate(.marked_not_attended = TRUE)
+
   # ── Assemble: every (resident, date) any source knows about ───────────
   keys <- dplyr::bind_rows(
     dd[, c("record_id", "Date")],
@@ -175,6 +186,7 @@ build_resident_activity <- function(rdm_token,
     dplyr::left_join(dd, by = c("record_id", "Date")) |>
     dplyr::left_join(noon_by_day, by = c("record_id", "Date")) |>
     dplyr::left_join(as_by_day, by = c("record_id", "Date")) |>
+    dplyr::left_join(not_attended_days, by = c("record_id", "Date")) |>
     dplyr::left_join(duty_status, by = c("record_id", "Date")) |>
     dplyr::left_join(duty_daily, by = c("record_id", "Date")) |>
     dplyr::mutate(
@@ -183,6 +195,8 @@ build_resident_activity <- function(rdm_token,
       conf_expected    = dplyr::coalesce(conf_expected, "None"),
       conf_logged      = !is.na(conf_logged_types),
       conf_attended    = conf_logged & conf_expected != "None",
+      conf_not_attended = dplyr::coalesce(.marked_not_attended, FALSE) &
+        conf_expected != "None" & !conf_attended,
       afternoon_school = dplyr::coalesce(afternoon_school, FALSE),
       duty_status      = dplyr::coalesce(duty_status, "no_schedule"),
       is_vacation      = dplyr::coalesce(is_vacation, FALSE)
@@ -191,7 +205,8 @@ build_resident_activity <- function(rdm_token,
       record_id, name, Level, Date, week_start, is_future,
       Rotation, category, super_category, Team_Assignment, Off_Status,
       Call_Status, Clinic_Sessions,
-      conf_expected, conf_logged, conf_attended, conf_logged_types, afternoon_school,
+      conf_expected, conf_logged, conf_attended, conf_not_attended,
+      conf_logged_types, afternoon_school,
       duty_status, duty_hours, home_hours, is_vacation
     ) |>
     dplyr::arrange(record_id, Date)

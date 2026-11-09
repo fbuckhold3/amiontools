@@ -67,3 +67,36 @@ pull_questions_log <- function(rdm_token, redcap_url) {
 
   raw[!is.na(raw$Date), c("record_id", "Date", "q_conference_type", "entry_date", "entry_time")]
 }
+
+#' Pull "did not attend" entries from the RDM `questions` form.
+#'
+#' These rows have a blank \code{q_conference_type}, so
+#' \code{pull_questions_log()} excludes them. A failed read returns zero
+#' rows: those days then show as not logged, so a resident can be asked to
+#' log a day again but can never be credited for one.
+#'
+#' @param rdm_token,redcap_url RDM REDCap credentials.
+#' @return Tibble: record_id (chr), Date, reason (chr).
+#' @export
+pull_not_attended_log <- function(rdm_token, redcap_url) {
+  empty <- dplyr::tibble(record_id = character(), Date = as.Date(character()),
+                          reason = character())
+  raw <- tryCatch(
+    REDCapR::redcap_read_oneshot(
+      redcap_uri = redcap_url, token = rdm_token,
+      fields = c("record_id", "q_date", "q_attended", "q_absence_reason"),
+      filter_logic = "[q_attended] = '0'",
+      guess_type = FALSE, verbose = FALSE
+    )$data,
+    error = function(e) {
+      message("[pull_not_attended_log] read failed: ", conditionMessage(e))
+      NULL
+    }
+  )
+  if (is.null(raw) || nrow(raw) == 0 || !"q_attended" %in% names(raw)) return(empty)
+  raw <- raw[!is.na(raw$q_attended) & raw$q_attended == "0", , drop = FALSE]
+  out <- dplyr::tibble(record_id = as.character(raw$record_id),
+                        Date      = suppressWarnings(as.Date(raw$q_date)),
+                        reason    = as.character(raw$q_absence_reason))
+  out[!is.na(out$Date), , drop = FALSE]
+}

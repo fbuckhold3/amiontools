@@ -55,10 +55,16 @@
 #' need a rotation) stays in the calling UI — this function only refuses
 #' input that can't be written at all.
 #'
+#' A "did not attend" entry (\code{attended = FALSE}) is written with a
+#' blank \code{q_conference_type}. \code{pull_questions_log()} already
+#' drops blank-type rows, so these can never count as attendance, including
+#' in apps still pinned to an older amiontools. Read them with
+#' \code{pull_not_attended_log()}.
+#'
 #' @param record_id RDM record_id.
-#' @param date Date the resident attended (Date, or "YYYY-MM-DD").
+#' @param date Date of the conference (Date, or "YYYY-MM-DD").
 #' @param conference_type Raw \code{q_conference_type} code ("1"-"5";
-#'   "3" = Afternoon School).
+#'   "3" = Afternoon School). Ignored when \code{attended = FALSE}.
 #' @param rotation Raw \code{q_rotation} code, or NULL/"" when the
 #'   conference type doesn't ask for one.
 #' @param answer Raw \code{q_answer} (at.noon's question of the day), or
@@ -68,6 +74,9 @@
 #' @param min_instance Floor for the instance number, for callers that may
 #'   have saved rows this session that a read could lag behind. The next
 #'   instance is \code{max(live max, min_instance) + 1}.
+#' @param attended \code{TRUE} (default) for attendance; \code{FALSE} for a
+#'   "did not attend" entry, which requires \code{absence_reason}.
+#' @param absence_reason Why the resident did not attend.
 #' @return A list: \code{success} (logical), \code{instance},
 #'   \code{entry_timestamp} (Central wall-clock, as written), \code{date}
 #'   ("YYYY-MM-DD"), \code{fields} (the named list written), \code{ts}
@@ -76,7 +85,8 @@
 #' @export
 save_attendance_entry <- function(record_id, date, conference_type,
                                   rotation = NULL, answer = NULL,
-                                  rdm_token, redcap_url, min_instance = 0L) {
+                                  rdm_token, redcap_url, min_instance = 0L,
+                                  attended = TRUE, absence_reason = NULL) {
   fail <- function(msg) list(success = FALSE, message = msg)
 
   if (is.null(record_id) || !nzchar(as.character(record_id)))
@@ -84,8 +94,13 @@ save_attendance_entry <- function(record_id, date, conference_type,
   d <- tryCatch(as.Date(date), error = function(e) NA)
   if (length(d) != 1 || is.na(d))
     return(fail("Please select a date."))
-  if (is.null(conference_type) || !nzchar(as.character(conference_type)))
-    return(fail("Please select which conference."))
+  reason <- if (is.null(absence_reason)) "" else trimws(as.character(absence_reason))
+  if (isTRUE(attended)) {
+    if (is.null(conference_type) || !nzchar(as.character(conference_type)))
+      return(fail("Please select which conference."))
+  } else if (!nzchar(reason)) {
+    return(fail("Please give a reason you did not attend."))
+  }
 
   live_max <- .att_live_max_question_instance(record_id, redcap_url, rdm_token)
   if (is.na(live_max))
@@ -101,7 +116,9 @@ save_attendance_entry <- function(record_id, date, conference_type,
 
   fields <- list(
     q_date             = format(d, "%Y-%m-%d"),
-    q_conference_type  = as.character(conference_type),
+    q_conference_type  = if (isTRUE(attended)) as.character(conference_type) else "",
+    q_attended         = if (isTRUE(attended)) "1" else "0",
+    q_absence_reason   = if (isTRUE(attended)) "" else reason,
     q_rotation         = if (is.null(rotation)) "" else as.character(rotation),
     q_answer           = if (is.null(answer)) "" else as.character(answer),
     q_entry_timestamp  = entry_timestamp,
