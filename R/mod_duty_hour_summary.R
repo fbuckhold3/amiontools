@@ -69,7 +69,7 @@ mod_duty_hour_summary_ui <- function(id) {
     shiny::uiOutput(ns("flags")),
     shiny::tags$details(
       style = "margin-top: 16px;",
-      shiny::tags$summary(style = "cursor: pointer; color: var(--ssm-text-muted, #6b7d82); font-size: 0.85rem;",
+      shiny::tags$summary(style = "cursor: pointer; color: var(--roundsui-ink-faint, #8991A0); font-size: 0.85rem;",
                           "View weekly table"),
       DT::DTOutput(ns("weekly_table"))
     )

@@ -75,7 +75,7 @@ NULL
       div(style = "display:flex; flex-wrap:wrap; gap:6px;",
         Map(mk_btn, names(ordinal), unname(ordinal), seq_along(ordinal))
       ),
-      div(style = "width:1px; align-self:stretch; background:var(--gmed-border,#dde5ed); margin:2px 2px;"),
+      div(style = "width:1px; align-self:stretch; background:var(--roundsui-border, #E2E5EC); margin:2px 2px;"),
       mk_btn(names(na_opt), unname(na_opt), 6L, na = TRUE)
     ),
     tags$input(type = "hidden", id = nid, name = nid, value = "")
@@ -85,7 +85,7 @@ NULL
 .peer_rating_css_js <- singleton(tags$head(
   tags$style(HTML("
     .peer-scale-btn {
-      border: 2px solid var(--gmed-border, #dde5ed);
+      border: 2px solid var(--roundsui-border, #E2E5EC);
       background: white;
       color: #2d3748;
       border-radius: 20px;
@@ -95,10 +95,10 @@ NULL
       cursor: pointer;
       transition: all 0.15s ease;
     }
-    .peer-scale-btn:hover { border-color: var(--gmed-secondary, #0f8a94); }
+    .peer-scale-btn:hover { border-color: var(--roundsui-accent, #3355D8); }
     .peer-scale-btn.selected {
-      background: var(--gmed-secondary, #0f8a94);
-      border-color: var(--gmed-secondary, #0f8a94);
+      background: var(--roundsui-accent, #3355D8);
+      border-color: var(--roundsui-accent, #3355D8);
       color: white;
     }
     .peer-scale-btn-na { color: #888; border-style: dashed; }
@@ -326,7 +326,7 @@ mod_peer_review_entry_ui <- function(id) {
       div(class = "gmed-card",
         div(class = "card-body",
           tags$p(class = "fw-semibold mb-3",
-                 style = "font-size:0.9rem; color:var(--ssm-primary-blue);",
+                 style = "font-size:0.9rem; color:var(--roundsui-accent, #3355D8);",
                  tags$i(class = "bi bi-people-fill me-2"),
                  "Give Feedback to a Fellow Resident"),
           uiOutput(ns("main_ui"))
@@ -337,7 +337,7 @@ mod_peer_review_entry_ui <- function(id) {
       div(class = "gmed-card",
         div(class = "card-body",
           tags$p(class = "fw-semibold mb-3",
-                 style = "font-size:0.9rem; color:var(--ssm-primary-blue);",
+                 style = "font-size:0.9rem; color:var(--roundsui-accent, #3355D8);",
                  tags$i(class = "bi bi-bar-chart-fill me-2"),
                  "Your Peer Review Results"),
           uiOutput(ns("results_ui")),
@@ -417,7 +417,7 @@ mod_peer_review_entry_server <- function(id, resident_id, all_residents_r, rdm_t
         tags$tr(
           tags$td(it$label, style = "font-size:0.85rem;"),
           tags$td(if (is.na(avg)) "—" else avg,
-                  style = "font-weight:700; text-align:center; color:var(--ssm-primary-blue);"),
+                  style = "font-weight:700; text-align:center; color:var(--roundsui-accent, #3355D8);"),
           tags$td(n_rated, style = "text-align:center; color:#888; font-size:0.8rem;")
         )
       })
@@ -457,12 +457,12 @@ mod_peer_review_entry_server <- function(id, resident_id, all_residents_r, rdm_t
           div(class = "card text-center border-0 shadow-sm py-3 px-2",
               style = "background:#fff; border-radius:8px;",
               tags$i(class = "bi bi-clipboard2-check-fill",
-                     style = "font-size:1.5rem; color:var(--ssm-primary-blue); opacity:.85;"),
+                     style = "font-size:1.5rem; color:var(--roundsui-accent, #3355D8); opacity:.85;"),
               tags$p(class = "mb-0 mt-2",
-                     style = "font-size:1.8rem; font-weight:700; color:var(--ssm-primary-blue); line-height:1.1;",
+                     style = "font-size:1.8rem; font-weight:700; color:var(--roundsui-accent, #3355D8); line-height:1.1;",
                      if (is.na(n)) "—" else n),
               tags$p(class = "mb-0 mt-1",
-                     style = "font-size:0.72rem; color:var(--ssm-text-muted); text-transform:uppercase; letter-spacing:.07em;",
+                     style = "font-size:0.72rem; color:var(--roundsui-ink-faint, #8991A0); text-transform:uppercase; letter-spacing:.07em;",
                      "Peer Reviews Completed")
           )
         )
@@ -612,7 +612,7 @@ mod_peer_review_entry_server <- function(id, resident_id, all_residents_r, rdm_t
         return(tagList(
           tags$p(
             tags$span("Reviewing: ", style = "color:#888; font-size:0.85rem;"),
-            tags$span(tgt$name, style = "font-weight:700; color:var(--ssm-primary-blue);")
+            tags$span(tgt$name, style = "font-weight:700; color:var(--roundsui-accent, #3355D8);")
           ),
           tags$hr(style = "margin:10px 0 16px;"),
           lapply(.PEER_ITEMS, function(it) .peer_rating_q(ns, it$field, it$label)),
@@ -632,7 +632,7 @@ mod_peer_review_entry_server <- function(id, resident_id, all_residents_r, rdm_t
         return(tagList(
           div(class = "text-center py-4",
             tags$i(class = "bi bi-check-circle-fill",
-                   style = "font-size:2.5rem; color:var(--ssm-success-green, #2e7d32);"),
+                   style = "font-size:2.5rem; color:var(--roundsui-success, #16A34A);"),
             tags$p(class = "mt-3", style = "font-weight:600;", "Peer review submitted."),
             actionButton(ns("btn_review_another"), "Review Someone Else", class = "btn-primary mt-2")
           )

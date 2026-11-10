@@ -45,7 +45,7 @@ mod_time_allocation_ui <- function(id) {
     ),
     shiny::tags$details(
       style = "margin-top: 12px;",
-      shiny::tags$summary(style = "cursor: pointer; color: var(--ssm-text-muted, #6b7d82); font-size: 0.85rem;",
+      shiny::tags$summary(style = "cursor: pointer; color: var(--roundsui-ink-faint, #8991A0); font-size: 0.85rem;",
                           "View as table"),
       DT::DTOutput(ns("table"))
     ),
