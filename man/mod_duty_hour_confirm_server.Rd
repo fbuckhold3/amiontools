@@ -12,7 +12,10 @@ mod_duty_hour_confirm_server(
   refresh,
   selected_date,
   redcap_url,
-  rdm_token
+  rdm_token,
+  queue_from = NULL,
+  queue_through = NULL,
+  skip_off_days = FALSE
 )
 }
 \arguments{
@@ -26,6 +29,19 @@ owned by the parent orchestrator — see file header.}
 \item{redcap_url}{REDCap API base URL.}
 
 \item{rdm_token}{REDCap API token (test or prod — caller's choice).}
+
+\item{queue_from}{Optional first date for the "oldest first" queue: a
+Date, or a reactive returning one. Days before it are left out of the
+queue but can still be opened from the calendar. `NULL` (default)
+queues every unconfirmed past day.}
+
+\item{queue_through}{Optional last date for the queue (a Date or a
+reactive). `NULL` (default) runs through today.}
+
+\item{skip_off_days}{Leave days that are entirely off in Amion (vacation,
+day off, jeopardy, weekend off) out of the queue, matching the
+"scheduled day" rule in \code{build_resident_activity()}. Default
+`FALSE`.}
 }
 \description{
 Duty-hour confirm/edit form module server

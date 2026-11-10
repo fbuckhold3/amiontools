@@ -66,6 +66,8 @@ NULL
 #'   only).
 #' @param record_ids Optional character vector — keep only these residents
 #'   (everything is still computed program-wide; this just filters output).
+#' @param not_attended_log Optional pre-fetched \code{pull_not_attended_log()}
+#'   (days a resident marked "did not attend"); fetched when \code{NULL}.
 #' @return A tibble, one row per (resident, date) in the academic year(s):
 #'   \describe{
 #'     \item{record_id, name, Level, Date, week_start, is_future}{Keys.

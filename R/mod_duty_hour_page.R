@@ -68,8 +68,16 @@ mod_duty_hour_page_ui <- function(id) {
 #' @param resident_id Reactive returning the current resident's record_id.
 #' @param rdm_token RDM REDCap API token.
 #' @param redcap_url REDCap base URL.
+#' @param queue_from Optional first date for the confirm form's queue (a
+#'   Date or a reactive); see \code{mod_duty_hour_confirm_server}. `NULL`
+#'   (default) queues every unconfirmed past day.
+#' @param queue_through,skip_off_days Optional queue limits; see
+#'   \code{mod_duty_hour_confirm_server}. Defaults keep every day through
+#'   today, off days included.
 #' @export
-mod_duty_hour_page_server <- function(id, resident_id, rdm_token, redcap_url) {
+mod_duty_hour_page_server <- function(id, resident_id, rdm_token, redcap_url,
+                                      queue_from = NULL, queue_through = NULL,
+                                      skip_off_days = FALSE) {
   shiny::moduleServer(id, function(input, output, session) {
     refresh <- shiny::reactiveVal(0)
     selected_date <- shiny::reactiveVal(NULL)
@@ -101,7 +109,9 @@ mod_duty_hour_page_server <- function(id, resident_id, rdm_token, redcap_url) {
     mod_duty_hour_confirm_server("confirm", resident_id = resident_id,
                                  entries_r = entries_r, amion_blocks_r = amion_blocks_r,
                                  refresh = refresh, selected_date = selected_date,
-                                 redcap_url = redcap_url, rdm_token = rdm_token)
+                                 redcap_url = redcap_url, rdm_token = rdm_token,
+                                 queue_from = queue_from, queue_through = queue_through,
+                                 skip_off_days = skip_off_days)
     mod_duty_hour_summary_server(
       "summary",
       resident_id = resident_id,

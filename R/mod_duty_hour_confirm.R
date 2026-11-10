@@ -45,9 +45,21 @@ mod_duty_hour_confirm_ui <- function(id) {
 #'   owned by the parent orchestrator — see file header.
 #' @param redcap_url REDCap API base URL.
 #' @param rdm_token REDCap API token (test or prod — caller's choice).
+#' @param queue_from Optional first date for the "oldest first" queue: a
+#'   Date, or a reactive returning one. Days before it are left out of the
+#'   queue but can still be opened from the calendar. `NULL` (default)
+#'   queues every unconfirmed past day.
+#' @param queue_through Optional last date for the queue (a Date or a
+#'   reactive). `NULL` (default) runs through today.
+#' @param skip_off_days Leave days that are entirely off in Amion (vacation,
+#'   day off, jeopardy, weekend off) out of the queue, matching the
+#'   "scheduled day" rule in \code{build_resident_activity()}. Default
+#'   `FALSE`.
 #' @export
 mod_duty_hour_confirm_server <- function(id, resident_id, entries_r, amion_blocks_r,
-                                         refresh, selected_date, redcap_url, rdm_token) {
+                                         refresh, selected_date, redcap_url, rdm_token,
+                                         queue_from = NULL, queue_through = NULL,
+                                         skip_off_days = FALSE) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -55,7 +67,19 @@ mod_duty_hour_confirm_server <- function(id, resident_id, entries_r, amion_block
       db <- amion_blocks_r()
       if (nrow(db) == 0) return(as.Date(character()))
       covered <- entries_r()$dh_date
-      dates <- unique(db$Date[db$Date <= Sys.Date()])
+      .date_arg <- function(x) {
+        v <- if (is.function(x)) x() else x
+        if (is.null(v) || length(v) != 1 || is.na(v)) NULL else as.Date(v)
+      }
+      from    <- .date_arg(queue_from)
+      through <- .date_arg(queue_through)
+      if (is.null(through) || through > Sys.Date()) through <- Sys.Date()
+      if (isTRUE(skip_off_days)) {
+        off <- tapply(db$source %in% .DUTY_OFF_SOURCES, db$Date, all)
+        db <- db[!db$Date %in% as.Date(names(off)[off]), , drop = FALSE]
+      }
+      dates <- unique(db$Date[db$Date <= through])
+      if (!is.null(from)) dates <- dates[dates >= from]
       sort(setdiff(dates, covered))
     })
 

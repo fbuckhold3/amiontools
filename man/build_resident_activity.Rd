@@ -56,6 +56,9 @@ only).}
 
 \item{record_ids}{Optional character vector — keep only these residents
 (everything is still computed program-wide; this just filters output).}
+
+\item{not_attended_log}{Optional pre-fetched \code{pull_not_attended_log()}
+(days a resident marked "did not attend"); fetched when \code{NULL}.}
 }
 \value{
 A tibble, one row per (resident, date) in the academic year(s):

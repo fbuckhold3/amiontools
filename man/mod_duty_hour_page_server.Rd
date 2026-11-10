@@ -4,7 +4,15 @@
 \alias{mod_duty_hour_page_server}
 \title{Duty Hours page server}
 \usage{
-mod_duty_hour_page_server(id, resident_id, rdm_token, redcap_url)
+mod_duty_hour_page_server(
+  id,
+  resident_id,
+  rdm_token,
+  redcap_url,
+  queue_from = NULL,
+  queue_through = NULL,
+  skip_off_days = FALSE
+)
 }
 \arguments{
 \item{id}{Shiny module id — must match \code{mod_duty_hour_page_ui}'s.}
@@ -14,6 +22,14 @@ mod_duty_hour_page_server(id, resident_id, rdm_token, redcap_url)
 \item{rdm_token}{RDM REDCap API token.}
 
 \item{redcap_url}{REDCap base URL.}
+
+\item{queue_from}{Optional first date for the confirm form's queue (a
+Date or a reactive); see \code{mod_duty_hour_confirm_server}. `NULL`
+(default) queues every unconfirmed past day.}
+
+\item{queue_through, skip_off_days}{Optional queue limits; see
+\code{mod_duty_hour_confirm_server}. Defaults keep every day through
+today, off days included.}
 }
 \description{
 Duty Hours page server
