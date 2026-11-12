@@ -26,16 +26,22 @@ NULL
 #' @param verified_only Logical. If TRUE (default), only return residents
 #'   whose match has been human-verified (`amion_verified == "1"`) rather
 #'   than every non-blank row.
+#' @param record_ids Optional character vector: read only these records.
+#'   One request instead of REDCapR's batched read (~0.3 s vs ~5 s), for
+#'   callers that need a single resident's schedule.
 #' @return Tibble with record_id, name, amion_staff_id (integer),
 #'   amion_verified, amion_match_date, Level.
 #' @export
-get_amion_crosswalk <- function(rdm_token, redcap_url, verified_only = TRUE) {
-  dat <- REDCapR::redcap_read(
-    redcap_uri = redcap_url,
-    token = rdm_token,
-    fields = c("record_id", "name", "amion_staff_id", "amion_verified",
-               "amion_match_date", "type", "grad_yr")
-  )$data
+get_amion_crosswalk <- function(rdm_token, redcap_url, verified_only = TRUE,
+                                record_ids = NULL) {
+  fields <- c("record_id", "name", "amion_staff_id", "amion_verified",
+              "amion_match_date", "type", "grad_yr")
+  dat <- if (is.null(record_ids)) {
+    REDCapR::redcap_read(redcap_uri = redcap_url, token = rdm_token, fields = fields)$data
+  } else {
+    REDCapR::redcap_read_oneshot(redcap_uri = redcap_url, token = rdm_token, fields = fields,
+                                 records = as.character(record_ids), verbose = FALSE)$data
+  }
 
   dat <- dat[!is.na(dat$amion_staff_id) & dat$amion_staff_id != "", ]
   if (isTRUE(verified_only)) {

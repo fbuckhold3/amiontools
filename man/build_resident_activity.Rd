@@ -54,8 +54,9 @@ standalone callers are unaffected.}
 \code{data.frame()} skips the resident-entry overlay (Amion defaults
 only).}
 
-\item{record_ids}{Optional character vector — keep only these residents
-(everything is still computed program-wide; this just filters output).}
+\item{record_ids}{Optional character vector — build only these residents.
+The crosswalk and the conference and duty logs are read for these
+records only, so one resident takes ~4 s instead of ~24 s.}
 
 \item{not_attended_log}{Optional pre-fetched \code{pull_not_attended_log()}
 (days a resident marked "did not attend"); fetched when \code{NULL}.}

@@ -5,12 +5,15 @@
 \title{Pull the RDM 2.0 "questions" form (conference attendance log) for every
 resident.}
 \usage{
-pull_questions_log(rdm_token, redcap_url)
+pull_questions_log(rdm_token, redcap_url, record_ids = NULL)
 }
 \arguments{
 \item{rdm_token}{RDM REDCap API token (test or prod — caller's choice).}
 
 \item{redcap_url}{REDCap API URL.}
+
+\item{record_ids}{Optional character vector: read only these records, in
+one request (~0.2 s vs ~6 s for the whole program).}
 }
 \value{
 Tibble: record_id, Date, q_conference_type (raw code "1"-"4",

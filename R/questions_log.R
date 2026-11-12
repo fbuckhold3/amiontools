@@ -26,13 +26,19 @@ NULL
 #'   if the timestamp is missing or unparseable). One row per logged entry — a resident can have zero, one, or
 #'   more than one entry per date (e.g. both SLUH and VA logged the same
 #'   day is possible, though unusual).
+#' @param record_ids Optional character vector: read only these records, in
+#'   one request (~0.2 s vs ~6 s for the whole program).
 #' @export
-pull_questions_log <- function(rdm_token, redcap_url) {
-  raw <- REDCapR::redcap_read(
-    redcap_uri = redcap_url,
-    token      = rdm_token,
-    forms      = "questions"
-  )$data
+pull_questions_log <- function(rdm_token, redcap_url, record_ids = NULL) {
+  raw <- if (is.null(record_ids)) {
+    REDCapR::redcap_read(redcap_uri = redcap_url, token = rdm_token, forms = "questions")$data
+  } else {
+    # fields = "record_id": without it a forms-only export drops record_id
+    # and the redcap_repeat_* columns.
+    REDCapR::redcap_read_oneshot(redcap_uri = redcap_url, token = rdm_token, forms = "questions",
+                                 fields = "record_id", records = as.character(record_ids),
+                                 verbose = FALSE)$data
+  }
 
   raw <- raw[!is.na(raw$redcap_repeat_instrument) & raw$redcap_repeat_instrument == "questions", ]
   if (nrow(raw) == 0) {
@@ -76,15 +82,17 @@ pull_questions_log <- function(rdm_token, redcap_url) {
 #' log a day again but can never be credited for one.
 #'
 #' @param rdm_token,redcap_url RDM REDCap credentials.
+#' @param record_ids Optional character vector: read only these records.
 #' @return Tibble: record_id (chr), Date, reason (chr).
 #' @export
-pull_not_attended_log <- function(rdm_token, redcap_url) {
+pull_not_attended_log <- function(rdm_token, redcap_url, record_ids = NULL) {
   empty <- dplyr::tibble(record_id = character(), Date = as.Date(character()),
                           reason = character())
   raw <- tryCatch(
     REDCapR::redcap_read_oneshot(
       redcap_uri = redcap_url, token = rdm_token,
       fields = c("record_id", "q_date", "q_attended", "q_absence_reason"),
+      records = if (is.null(record_ids)) NULL else as.character(record_ids),
       filter_logic = "[q_attended] = '0'",
       guess_type = FALSE, verbose = FALSE
     )$data,

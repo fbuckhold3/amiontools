@@ -4,10 +4,12 @@
 \alias{pull_not_attended_log}
 \title{Pull "did not attend" entries from the RDM \code{questions} form.}
 \usage{
-pull_not_attended_log(rdm_token, redcap_url)
+pull_not_attended_log(rdm_token, redcap_url, record_ids = NULL)
 }
 \arguments{
 \item{rdm_token, redcap_url}{RDM REDCap credentials.}
+
+\item{record_ids}{Optional character vector: read only these records.}
 }
 \value{
 Tibble: record_id (chr), Date, reason (chr).

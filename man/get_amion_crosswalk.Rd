@@ -4,7 +4,12 @@
 \alias{get_amion_crosswalk}
 \title{Pull the RDM record_id <-> Amion Staff ID crosswalk, with PGY level.}
 \usage{
-get_amion_crosswalk(rdm_token, redcap_url, verified_only = TRUE)
+get_amion_crosswalk(
+  rdm_token,
+  redcap_url,
+  verified_only = TRUE,
+  record_ids = NULL
+)
 }
 \arguments{
 \item{rdm_token}{RDM REDCap API token (test or prod — caller's choice,
@@ -15,6 +20,10 @@ this function does not default one for you).}
 \item{verified_only}{Logical. If TRUE (default), only return residents
 whose match has been human-verified (\code{amion_verified == "1"}) rather
 than every non-blank row.}
+
+\item{record_ids}{Optional character vector: read only these records.
+One request instead of REDCapR's batched read (~0.3 s vs ~5 s), for
+callers that need a single resident's schedule.}
 }
 \value{
 Tibble with record_id, name, amion_staff_id (integer),
